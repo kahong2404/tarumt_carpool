@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "688490305856",
+    "project_id": "tarumt-carpooling-c71c7",
+    "storage_bucket": "tarumt-carpooling-c71c7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:688490305856:android:b4a4704379985e66cd82a5",
+        "android_client_info": {
+          "package_name": "com.tarumt.tarumt_carpool"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOcJ9Up8DTzdRAg_V4MXIZaj-aTsI9t-c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
