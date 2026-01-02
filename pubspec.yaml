@@ -49,16 +49,42 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+
+#icon for phone home screen
+flutter_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#00B14F"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+#icon for app opening screen
+flutter_native_splash:
+  android: true
+  ios: false
+  color: "#00B14F"
+  image: assets/splash/splash_logo.png
+  android_12:
+    color: "#00B14F"
+    image: assets/splash/splash_logo.png
+
 flutter:
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  #assest for application
+  assets:
+    - assets/icon/
+    - assets/splash/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
