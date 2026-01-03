@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import '../widgets/error_text.dart';
+import 'driver_homepage.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -212,6 +213,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2),
                   )
                       : const Text('Sign Up'),
+                ),
+              ),
+
+              //Remember to delete this linking to the driver homepage
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DriverHomePage(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Go to Driver Home Page',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
