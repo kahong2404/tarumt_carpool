@@ -127,9 +127,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               const SizedBox(height: 18),
               CircleAvatar(
-                radius: 22,
-                backgroundColor: primary.withOpacity(0.12),
-                child: Icon(Icons.directions_car, color: primary),
+                radius: 28, // slightly bigger for logo
+                backgroundColor: Colors.transparent,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
               const Text('TARUMT Carpooling', style: TextStyle(fontWeight: FontWeight.w600)),
