@@ -50,5 +50,21 @@ class AuthService {
     });
   }
 
+  //login
+    Future<void> login({
+      required String email,
+      required String password,
+    }) async {
+      if (!_isTarumtEmail(email)) {
+        throw Exception('Please use a valid TARUMT email.');
+      }
+
+      await _auth.signInWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+    }
+
+
 }
 
