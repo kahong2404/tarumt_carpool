@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/auth/rider_homepage.dart';
 import 'auth_service.dart';
 import '../widgets/error_text.dart';
 import '../widgets/primary_button.dart';
@@ -104,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: brandBlue.withOpacity(0.10),
+                  color: brandBlue,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(1),
@@ -182,12 +183,17 @@ class AfterLoginRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Redirect immediately after build
+    Future.microtask(() {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RiderHomePage()),
+      );
+    });
+
     return const Scaffold(
       body: Center(
-        child: Text(
-          'Login Successful!\n(Next: route based on role)',
-          textAlign: TextAlign.center,
-        ),
+        child: CircularProgressIndicator(),
       ),
     );
   }
