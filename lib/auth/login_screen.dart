@@ -1,10 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:tarumt_carpool/auth/rider_homepage.dart';
+import '../repositories/user_repository.dart';
+import '../screens/admin_home_page.dart';
+import '../screens/rider_home_page.dart';
+import '../screens/driver_home_page.dart';
 import 'auth_service.dart';
 import '../widgets/error_text.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/primary_text_field.dart';
 import 'register_screen.dart';
+import '../app_state.dart';
+import '../models/app_user.dart';
+
+
 
 
 class LoginScreen extends StatefulWidget {
@@ -77,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ After login success, go to a placeholder Home for now
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const AfterLoginRouter()),
+        MaterialPageRoute(builder: (_) => AfterLoginRouter()),
       );
     } catch (e) {
       setState(() => _error = _friendlyError(e));
@@ -179,22 +187,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
 /// Temporary screen after login (we will replace later)
 class AfterLoginRouter extends StatelessWidget {
-  const AfterLoginRouter({super.key});
+  AfterLoginRouter({super.key});
+
+  final UserRepository _users = UserRepository();
+
+  Future<AppUser> _loadUser() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('User not logged in');
+
+    final user = await _users.getUser(uid);
+
+    // 🔥 STORE in app state
+    AppState().currentUser = user;
+
+    return user;
+  }
+
 
   @override
   Widget build(BuildContext context) {
-    // Redirect immediately after build
-    Future.microtask(() {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const RiderHomePage()),
-      );
-    });
+    return FutureBuilder<AppUser>(
+      future: _loadUser(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+
+        final user = snapshot.data!;
+        final role = user.role;
+
+
+        if (role == 'admin') {
+          return const DriverHomePage();
+        } else if (role == 'driver') {
+          return const DriverHomePage();
+        } else {
+          return const RiderHomePage();
+        }
+      },
     );
   }
 }
+

@@ -5,7 +5,7 @@ import '../widgets/error_text.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/primary_text_field.dart';
 import 'login_screen.dart';
-import 'driver_homepage.dart';
+import '../screens/driver_home_page.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

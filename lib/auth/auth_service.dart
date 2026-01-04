@@ -1,10 +1,10 @@
-import '../models/app_user.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/app_user.dart';
+import '../repositories/user_repository.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final UserRepository _users = UserRepository();
 
   bool _isTarumtEmail(String email) {
     final e = email.trim().toLowerCase();
@@ -29,42 +29,33 @@ class AuthService {
 
     final uid = cred.user!.uid;
 
-    final driverStatus = (role == 'driver') ? 'pending' : 'not_driver';
-
-    // ✅ OOP: create AppUser object
     final appUser = AppUser(
       uid: uid,
       email: email.trim().toLowerCase(),
       staffId: staffId.trim(),
       phone: phone.trim(),
       role: role,
-      driverStatus: driverStatus,
+      driverStatus: role == 'driver' ? 'pending' : 'not_driver',
       walletBalance: 0,
     );
 
-    // ✅ OOP: save object to Firestore
-    await _db.collection('users').doc(uid).set({
-      ...appUser.toMap(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    // 🔥 delegate Firestore to repository
+    await _users.createUser(appUser);
   }
 
-  //login
-    Future<void> login({
-      required String email,
-      required String password,
-    }) async {
-      if (!_isTarumtEmail(email)) {
-        throw Exception('Please use a valid TARUMT email.');
-      }
-
-      await _auth.signInWithEmailAndPassword(
-        email: email.trim().toLowerCase(),
-        password: password,
-      );
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
+    if (!_isTarumtEmail(email)) {
+      throw Exception('Please use a valid TARUMT email.');
     }
 
+    await _auth.signInWithEmailAndPassword(
+      email: email.trim().toLowerCase(),
+      password: password,
+    );
+  }
 
+  String? get currentUid => _auth.currentUser?.uid;
 }
-

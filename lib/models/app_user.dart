@@ -17,29 +17,25 @@ class AppUser {
     required this.walletBalance,
   });
 
-  // Object → Firestore
-  Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'email': email,
-      'staffId': staffId,
-      'phone': phone,
-      'role': role,
-      'driverStatus': driverStatus,
-      'walletBalance': walletBalance,
-    };
-  }
+  Map<String, dynamic> toMap() => {
+    'uid': uid,
+    'email': email,
+    'staffId': staffId,
+    'phone': phone,
+    'role': role,
+    'driverStatus': driverStatus,
+    'walletBalance': walletBalance,
+  };
 
-  // Firestore → Object (for later use)
-  factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
-    return AppUser(
-      uid: uid,
-      email: data['email'] ?? '',
-      staffId: data['staffId'] ?? '',
-      phone: data['phone'] ?? '',
-      role: data['role'] ?? 'rider',
-      driverStatus: data['driverStatus'] ?? 'not_driver',
-      walletBalance: data['walletBalance'] ?? 0,
-    );
-  }
+  factory AppUser.fromMap(Map<String, dynamic> map) => AppUser(
+    uid: map['uid'] ?? '',
+    email: map['email'] ?? '',
+    staffId: map['staffId'] ?? '',
+    phone: map['phone'] ?? '',
+    role: map['role'] ?? 'rider',
+    driverStatus: map['driverStatus'] ?? 'not_driver',
+    walletBalance: (map['walletBalance'] ?? 0) is int
+        ? (map['walletBalance'] ?? 0)
+        : (map['walletBalance'] as num).toInt(),
+  );
 }
