@@ -116,9 +116,9 @@ class _SearchBar extends StatelessWidget {
         height: 42, // ✅ slightly smaller
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withOpacity(0.30)),
+          border: Border.all(color: Colors.white),
         ),
         child: Row(
           children: [
@@ -135,7 +135,7 @@ class _SearchBar extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.search, color: Colors.white),
@@ -173,9 +173,9 @@ class _QuickTile extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.16),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.22)),
+            border: Border.all(color: Colors.white),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
