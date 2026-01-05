@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 //  initialize Firebase in a Flutter application
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 import 'auth/register_screen.dart';
 
@@ -28,9 +27,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class DriverOfferRtdbService {
-  final dbRef = FirebaseDatabase.instance.ref();
-}
 
 // import 'package:flutter/material.dart';
 // // initialize Firebase in a Flutter application

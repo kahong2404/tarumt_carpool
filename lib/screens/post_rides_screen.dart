@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:tarumt_carpool/rides/post_rides_service.dart';
+import 'package:tarumt_carpool/models/driver_offer.dart';
+import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
@@ -16,9 +17,12 @@ class _PostRides extends State<PostRides> {
   final _seatsCtrl = TextEditingController();
   final _fareCtrl = TextEditingController();
 
-  // final _service = DriverOfferRtdbService();
-  // bool _loading = false;
+  final DriverOfferRepository _repo = DriverOfferRepository();
 
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -39,6 +43,65 @@ class _PostRides extends State<PostRides> {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       isDense: true,
     );
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  Future<void> _postRide() async {
+    final pickup = _pickupCtrl.text.trim();
+    final dest = _destinationCtrl.text.trim();
+
+    if (pickup.isEmpty) return _snack("Please enter pickup location.");
+    if (dest.isEmpty) return _snack("Please enter destination.");
+    if (_selectedDate == null) return _snack("Please select date.");
+    if (_selectedTime == null) return _snack("Please select time.");
+
+    final seats = int.tryParse(_seatsCtrl.text.trim());
+    if (seats == null || seats <= 0) return _snack("Seats must be a number > 0.");
+
+    final fareText = _fareCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '');
+    final fare = double.tryParse(fareText);
+    if (fare == null || fare < 0) return _snack("Fare must be a valid number (e.g. 5.00).");
+
+    final dt = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+
+    if (dt.isBefore(DateTime.now())) {
+      return _snack("Selected date/time is in the past.");
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final offer = DriverOffer(
+        driverId: '', // Repository will replace with current user uid
+        pickup: pickup,
+        destination: dest,
+        rideDateTime: dt,
+        seatsAvailable: seats,
+        fare: fare,
+      );
+
+      final id = await _repo.create(offer);
+      _snack("Posted successfully! ID: $id");
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      _snack("Failed to post ride: $e");
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -68,15 +131,21 @@ class _PostRides extends State<PostRides> {
 
             TextField(
               controller: _pickupCtrl,
-              decoration: _dec('Pick Up Location', Icons.location_on_outlined,
-                  hint: 'Enter pickup location'),
+              decoration: _dec(
+                'Pick Up Location',
+                Icons.location_on_outlined,
+                hint: 'Enter pickup location',
+              ),
             ),
             const SizedBox(height: 12),
 
             TextField(
               controller: _destinationCtrl,
-              decoration: _dec('Destination', Icons.flag_outlined,
-                  hint: 'Enter destination'),
+              decoration: _dec(
+                'Destination',
+                Icons.flag_outlined,
+                hint: 'Enter destination',
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -86,9 +155,10 @@ class _PostRides extends State<PostRides> {
                   child: TextField(
                     controller: _dateCtrl,
                     readOnly: true,
-                    decoration:
-                    _dec('Date', Icons.calendar_month_outlined),
-                    onTap: () async {
+                    decoration: _dec('Date', Icons.calendar_month_outlined),
+                    onTap: _loading
+                        ? null
+                        : () async {
                       final picked = await showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
@@ -96,8 +166,9 @@ class _PostRides extends State<PostRides> {
                         initialDate: DateTime.now(),
                       );
                       if (picked != null) {
-                        _dateCtrl.text =
-                        '${picked.day}/${picked.month}/${picked.year}';
+                        _selectedDate = picked;
+                        _dateCtrl.text = '${picked.day}/${picked.month}/${picked.year}';
+                        setState(() {});
                       }
                     },
                   ),
@@ -107,13 +178,18 @@ class _PostRides extends State<PostRides> {
                   child: TextField(
                     controller: _timeCtrl,
                     readOnly: true,
-                    decoration:
-                    _dec('Time', Icons.access_time_outlined),
-                    onTap: () async {
-                      final picked =
-                      await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                    decoration: _dec('Time', Icons.access_time_outlined),
+                    onTap: _loading
+                        ? null
+                        : () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                      );
                       if (picked != null) {
+                        _selectedTime = picked;
                         _timeCtrl.text = picked.format(context);
+                        setState(() {});
                       }
                     },
                   ),
@@ -131,14 +207,11 @@ class _PostRides extends State<PostRides> {
 
             TextField(
               controller: _fareCtrl,
-              keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-              decoration:
-              _dec('Ride Fare', Icons.attach_money_outlined, hint: 'RM 0.00'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: _dec('Ride Fare', Icons.attach_money_outlined, hint: 'RM 0.00'),
             ),
             const SizedBox(height: 14),
 
-            // Tip box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -164,87 +237,33 @@ class _PostRides extends State<PostRides> {
 
             const SizedBox(height: 20),
 
-            // Post Ride Offer
             SizedBox(
               width: double.infinity,
               height: 48,
-            //   child: ElevatedButton(
-            //     onPressed: _loading ? null : () async {
-            //       // 1. Basic validation
-            //       if (_pickupCtrl.text.isEmpty ||
-            //           _destinationCtrl.text.isEmpty ||
-            //           _dateCtrl.text.isEmpty ||
-            //           _timeCtrl.text.isEmpty ||
-            //           _seatsCtrl.text.isEmpty) {
-            //         ScaffoldMessenger.of(context).showSnackBar(
-            //           const SnackBar(content: Text('Please fill in all fields')),
-            //         );
-            //         return;
-            //       }
-            //
-            //       final totalSeats = int.tryParse(_seatsCtrl.text);
-            //       if (totalSeats == null || totalSeats <= 0) {
-            //         ScaffoldMessenger.of(context).showSnackBar(
-            //           const SnackBar(content: Text('Invalid seats number')),
-            //         );
-            //         return;
-            //       }
-            //
-            //       // 🔑 Replace with your real logged-in driver ID
-            //       final driverID = 'CURRENT_DRIVER_UID';
-            //
-            //       try {
-            //         setState(() => _loading = true);
-            //
-            //         final offerID = await _service.createDriverOffer(
-            //           driverID: driverID,
-            //           origin: _pickupCtrl.text,
-            //           destination: _destinationCtrl.text,
-            //           rideDate: _dateCtrl.text,
-            //           rideTime: _timeCtrl.text,
-            //           totalSeats: totalSeats,
-            //         );
-            //
-            //         if (!mounted) return;
-            //
-            //         ScaffoldMessenger.of(context).showSnackBar(
-            //           const SnackBar(content: Text('Ride offer posted successfully')),
-            //         );
-            //
-            //         Navigator.pop(context); // go back after success
-            //       } catch (e) {
-            //         ScaffoldMessenger.of(context).showSnackBar(
-            //           SnackBar(content: Text('Failed to post ride: $e')),
-            //         );
-            //       } finally {
-            //         if (mounted) setState(() => _loading = false);
-            //       }
-            //     },
-            //
-            //     style: ElevatedButton.styleFrom(
-            //       backgroundColor: blue,
-            //     ),
-            //     child: _loading
-            //         ? const CircularProgressIndicator(color: Colors.white)
-            //         : const Text(
-            //       'Post Ride Offer',
-            //       style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
-            //     ),
-            //   ),
+              child: ElevatedButton(
+                onPressed: _loading ? null : _postRide,
+                style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF2B6CFF)),
+                child: _loading
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                    : const Text(
+                  'Post Your Ride',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
             ),
             const SizedBox(height: 10),
 
-            // Cancel
             SizedBox(
               width: double.infinity,
               height: 44,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                ),
+                onPressed: _loading ? null : () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text(
                   'Cancel',
                   style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),

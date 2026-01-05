@@ -58,7 +58,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '688490305856',
     projectId: 'tarumt-carpooling-c71c7',
     storageBucket: 'tarumt-carpooling-c71c7.firebasestorage.app',
-    // databaseURL: 'https://tarumt-carpooling-c71c7-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
 }
