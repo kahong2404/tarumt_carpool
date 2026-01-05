@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 //  initialize Firebase in a Flutter application
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 import 'auth/register_screen.dart';
 
@@ -27,13 +28,17 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class DriverOfferRtdbService {
+  final dbRef = FirebaseDatabase.instance.ref();
+}
+
 // import 'package:flutter/material.dart';
 // // initialize Firebase in a Flutter application
 // import 'package:firebase_core/firebase_core.dart';
 // import 'firebase_options.dart';
 //
 //
-// // Future means this function finish later no imeediately
+// // Future means this function finish later no immediately
 // // async means this function will do something that takes time, and we need to wait for it.
 // //This app starts here, it will run some asynchronous code (like Firebase), we will wait until it finishes, and then continue
 // Future<void> main() async {

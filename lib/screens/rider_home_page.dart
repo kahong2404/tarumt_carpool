@@ -5,10 +5,10 @@ class RiderHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    const primary = Color(0xFF1E73FF);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: const Color(0xFFF5F6FA), // white
       body: SafeArea(
         child: Column(
           children: [
@@ -116,9 +116,9 @@ class _SearchBar extends StatelessWidget {
         height: 42, // ✅ slightly smaller
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Colors.white.withOpacity(0.18),
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white),
+          border: Border.all(color: Colors.white.withOpacity(0.30)),
         ),
         child: Row(
           children: [
@@ -135,7 +135,7 @@ class _SearchBar extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Colors.white.withOpacity(0.18),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.search, color: Colors.white),
@@ -173,9 +173,9 @@ class _QuickTile extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.16),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white),
+            border: Border.all(color: Colors.white.withOpacity(0.22)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

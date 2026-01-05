@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/rides/post_rides.dart';
 
 class DriverHomePage extends StatelessWidget {
   const DriverHomePage({super.key});
@@ -45,9 +46,15 @@ class DriverHomePage extends StatelessWidget {
                     icon: Icons.add_box_outlined,
                     title: "Post Rider Offer",
                     onTap: () {
-                      // TODO: navigate to post ride page
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PostRides(),
+                        ),
+                      );
                     },
                   ),
+
                 ],
               ),
 
