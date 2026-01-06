@@ -3,6 +3,7 @@ import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
+import 'package:tarumt_carpool/screens/edit_post_screen.dart';
 import 'package:tarumt_carpool/screens/post_rides_screen.dart';
 
 
@@ -29,8 +30,6 @@ class _DriverHomePageState extends State<DriverHomePage> {
     });
   }
 
-
-  @override
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -140,18 +139,68 @@ class _MyRidePostsPreview extends StatelessWidget {
     return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
 
+  Future<bool> _confirm(BuildContext context, String title, String msg, String okText) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Back")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(okText)),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  Widget _statusBadge(DriverOfferStatus status) {
+    final label = statusToString(status); // from your model
+    // simple color choice
+    final Color bg = switch (status) {
+      DriverOfferStatus.open => const Color(0xFFE7F3FF),
+      DriverOfferStatus.cancelled => const Color(0xFFFFE9E9),
+      DriverOfferStatus.booked => const Color(0xFFFFF4D6),
+      DriverOfferStatus.completed => const Color(0xFFE8F7EE),
+    };
+    final Color fg = switch (status) {
+      DriverOfferStatus.open => const Color(0xFF2B6CFF),
+      DriverOfferStatus.cancelled => Colors.red,
+      DriverOfferStatus.booked => const Color(0xFFB7791F),
+      DriverOfferStatus.completed => const Color(0xFF1F7A3F),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w700,
+          fontSize: 11.5,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = DriverOfferRepository();
 
     return StreamBuilder<List<DriverOffer>>(
-      stream: repo.streamMine(), // ✅ ONLY current user's offers
+      stream: repo.streamMine(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.all(16),
-            child: CircularProgressIndicator(),
-          ));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         if (snap.hasError) {
@@ -169,78 +218,145 @@ class _MyRidePostsPreview extends StatelessWidget {
 
         final offers = snap.data ?? [];
 
-        // ✅ if no posts -> show your existing empty state
         if (offers.isEmpty) {
           return _EmptyRidePostState(onCreateTap: onCreateTap);
         }
 
-        // ✅ show only first 2-3 posts as "preview"
         final preview = offers.length > 3 ? offers.take(3).toList() : offers;
 
         return Column(
           children: [
             ...preview.map((o) {
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE6E6E6)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEAF2FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.route_outlined,
-                        color: Color(0xFF2B6CFF),
-                      ),
+              final offerId = o.offerId; // should exist from Firestore doc id
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: offerId == null
+                    ? null
+                    : () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditPostScreenRides(offerId: offerId),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "${o.pickup} → ${o.destination}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14.5,
+                  );
+                  // No manual refresh needed: stream updates automatically
+                },
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE6E6E6)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF2FF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.route_outlined,
+                          color: Color(0xFF2B6CFF),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // title + status badge
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "${o.pickup} → ${o.destination}",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14.5,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _statusBadge(o.status),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            "Time: ${_fmtDateTime(o.rideDateTime)}",
-                            style: const TextStyle(fontSize: 12.5, color: Colors.black54),
-                          ),
-                          Text(
-                            "Seats: ${o.seatsAvailable}  •  RM ${o.fare.toStringAsFixed(2)}",
-                            style: const TextStyle(fontSize: 12.5, color: Colors.black54),
-                          ),
-                        ],
+
+                            const SizedBox(height: 6),
+                            Text(
+                              "Time: ${_fmtDateTime(o.rideDateTime)}",
+                              style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                            ),
+                            Text(
+                              "Seats: ${o.seatsAvailable}  •  RM ${o.fare.toStringAsFixed(2)}",
+                              style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // action buttons
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: offerId == null
+                                      ? null
+                                      : () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => EditPostScreenRides(offerId: offerId),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  label: const Text("Edit"),
+                                ),
+                                const SizedBox(width: 8),
+
+                                const Spacer(),
+
+                                IconButton(
+                                  tooltip: "Delete",
+                                  onPressed: (offerId == null)
+                                      ? null
+                                      : () async {
+                                    final ok = await _confirm(
+                                      context,
+                                      "Delete offer?",
+                                      "This will permanently delete the post.",
+                                      "Delete",
+                                    );
+                                    if (!ok) return;
+                                    await repo.delete(offerId);
+                                  },
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             }),
 
-            // Optional: "View all" button if more than 3
             if (offers.length > 3)
               SizedBox(
                 width: double.infinity,
                 height: 44,
                 child: OutlinedButton(
                   onPressed: () {
-                    // TODO: navigate to MyPostedRidesPage (full list with edit/delete)
+                    // Optional: navigate to full page list
                     // Navigator.push(context, MaterialPageRoute(builder: (_) => const MyPostedRidesPage()));
                   },
                   child: const Text("View all my posts"),
