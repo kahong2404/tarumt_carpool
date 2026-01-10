@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_places_flutter/google_places_flutter.dart';
+import 'package:google_places_flutter/model/prediction.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
+
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
@@ -23,6 +26,8 @@ class _PostRides extends State<PostRides> {
   TimeOfDay? _selectedTime;
 
   bool _loading = false;
+
+  static const String _googleApiKey = "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA";
 
   @override
   void dispose() {
@@ -129,24 +134,44 @@ class _PostRides extends State<PostRides> {
             ),
             const SizedBox(height: 18),
 
-            TextField(
-              controller: _pickupCtrl,
-              decoration: _dec(
+            GooglePlaceAutoCompleteTextField(
+              textEditingController: _pickupCtrl,
+              googleAPIKey: _googleApiKey,
+              debounceTime: 400,
+              isLatLngRequired: false,
+              inputDecoration: _dec(
                 'Pick Up Location',
                 Icons.location_on_outlined,
-                hint: 'Enter pickup location',
+                hint: 'Search pickup location',
               ),
+              itemClick: (Prediction p) {
+                _pickupCtrl.text = p.description ?? '';
+                _pickupCtrl.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _pickupCtrl.text.length),
+                );
+              },
             ),
+
             const SizedBox(height: 12),
 
-            TextField(
-              controller: _destinationCtrl,
-              decoration: _dec(
+            GooglePlaceAutoCompleteTextField(
+              textEditingController: _destinationCtrl,
+              googleAPIKey: _googleApiKey,
+              debounceTime: 400,
+              isLatLngRequired: false,
+              inputDecoration: _dec(
                 'Destination',
                 Icons.flag_outlined,
-                hint: 'Enter destination',
+                hint: 'Search destination',
               ),
+              itemClick: (Prediction p) {
+                _destinationCtrl.text = p.description ?? '';
+                _destinationCtrl.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _destinationCtrl.text.length),
+                );
+              },
             ),
+
             const SizedBox(height: 12),
 
             Row(

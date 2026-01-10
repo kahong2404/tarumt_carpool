@@ -4,7 +4,7 @@ import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
 import 'package:tarumt_carpool/screens/edit_post_screen.dart';
-import 'package:tarumt_carpool/screens/post_rides_screen.dart';
+import 'package:tarumt_carpool/screens/create_post_rides_screen.dart';
 
 
 class DriverHomePage extends StatefulWidget {
@@ -273,19 +273,70 @@ class _MyRidePostsPreview extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // title + status badge
+// pickup + destination + status badge
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    "${o.pickup} → ${o.destination}",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14.5,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Pickup
+                                      Text.rich(
+                                        TextSpan(
+                                          children: [
+                                            const TextSpan(
+                                              text: "From: ",
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: o.pickup,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+
+                                      const SizedBox(height: 3),
+
+                                      // Destination
+                                      Text.rich(
+                                        TextSpan(
+                                          children: [
+                                            const TextSpan(
+                                              text: "To: ",
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: o.destination,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
                                 ),
+
                                 const SizedBox(width: 8),
+
+                                // Status badge stays the same
                                 _statusBadge(o.status),
                               ],
                             ),
@@ -305,20 +356,7 @@ class _MyRidePostsPreview extends StatelessWidget {
                             // action buttons
                             Row(
                               children: [
-                                OutlinedButton.icon(
-                                  onPressed: offerId == null
-                                      ? null
-                                      : () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => EditPostScreenRides(offerId: offerId),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
-                                  label: const Text("Edit"),
-                                ),
+
                                 const SizedBox(width: 8),
 
                                 const Spacer(),
