@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/models/driver_offer.dart';
+import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 
 class RiderHomePage extends StatelessWidget {
   const RiderHomePage({super.key});
@@ -69,14 +71,13 @@ class RiderHomePage extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // ✅ Your list area (you said list is OK)
-            // For now, show empty state as in your screenshot
-            const Expanded(
+            Expanded(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
-                child: _EmptyRideState(),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: _OpenOffersList(),
               ),
             ),
+
           ],
         ),
       ),
@@ -245,3 +246,171 @@ class _EmptyRideState extends StatelessWidget {
     );
   }
 }
+
+class _OpenOffersList extends StatelessWidget {
+  _OpenOffersList({super.key});
+
+  final _repo = DriverOfferRepository();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<DriverOffer>>(
+      stream: _repo.streamOpenOffers(),
+      builder: (context, snapshot) {
+        // Loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Error
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Failed to load ride offers.\n${snapshot.error}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black54, height: 1.4),
+            ),
+          );
+        }
+
+        final offers = snapshot.data ?? [];
+
+        // Empty
+        if (offers.isEmpty) {
+          return const _EmptyRideState();
+        }
+
+        // List
+        return RefreshIndicator(
+          onRefresh: () async {
+            // Stream auto-updates; this just gives the user the "pull to refresh" UX.
+            // If you want a true refresh, you’d implement a cached source; for Firestore stream this is enough.
+            await Future<void>.delayed(const Duration(milliseconds: 350));
+          },
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 6, bottom: 14),
+            itemCount: offers.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final offer = offers[index];
+              return _DriverOfferCard(offer: offer);
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DriverOfferCard extends StatelessWidget {
+  final DriverOffer offer;
+
+  const _DriverOfferCard({required this.offer});
+
+  @override
+  Widget build(BuildContext context) {
+    final dt = offer.rideDateTime; // DateTime?
+    final dateText = dt == false
+        ? 'Date not set'
+        : '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final timeText = dt == false
+        ? ''
+        : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black12.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.06),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(
+                  text: "From: ",
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: 12.5,)
+                ),
+                TextSpan(
+                  text: offer.pickup,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                )
+              ]
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          const SizedBox(height: 3),
+
+          Text.rich(
+            TextSpan(
+                children: [
+                  const TextSpan(
+                      text: "From: ",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12.5,)
+                  ),
+                  TextSpan(
+                    text: offer.destination,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  )
+                ]
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          // Text(
+          //   '${offer.pickup} → ${offer.destination}',
+          //   maxLines: 2,
+          //   overflow: TextOverflow.ellipsis,
+          //   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          // ),
+          const SizedBox(height: 6),
+          Text(
+            '$dateText ${timeText.isEmpty ? "" : "• $timeText"} • ${offer.seatsAvailable} seat(s)',
+            style: const TextStyle(color: Colors.black54, height: 1.3),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                'RM ${offer.fare.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () {
+                  // TODO: Navigate to offer details / request ride
+                  // Navigator.push(context, MaterialPageRoute(builder: (_) => OfferDetailsPage(offerId: offer.offerId!)));
+                },
+                child: const Text('View'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
