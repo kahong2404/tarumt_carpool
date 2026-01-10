@@ -55,7 +55,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     String displayName = "Driver";
                     if (snap.hasData && snap.data != null) {
                       final user = snap.data!;
-                      final name = (user.email ?? '').trim();
+                      final name = user.email.trim();
                       if (name.isNotEmpty) displayName = name;
                     }
                     return Text(
