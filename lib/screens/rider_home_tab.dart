@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
+import 'package:tarumt_carpool/screens/pickup_search_screen.dart';
 
 class RiderHomeTab extends StatelessWidget {
   const RiderHomeTab({super.key});
@@ -25,7 +26,17 @@ class RiderHomeTab extends StatelessWidget {
             children: [
               _SearchBar(
                 hintText: 'Pick Up At?',
-                onSearchTap: () {},
+                onSearchTap: () async {
+                  final pickup = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PickupSearchPage()),
+                  );
+
+                  if (pickup != null) {
+                    print("Pickup selected: $pickup");
+                  }
+                },
+
               ),
               const SizedBox(height: 12),
               Row(
@@ -266,7 +277,6 @@ class _DriverOfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX 1: dt should check null, not "false"
     final DateTime? dt = offer.rideDateTime;
 
     final dateText = dt == null
@@ -313,7 +323,6 @@ class _DriverOfferCard extends StatelessWidget {
 
           const SizedBox(height: 3),
 
-          // ✅ FIX 2: this should be "To:" not "From:"
           Text.rich(
             TextSpan(
               children: [
