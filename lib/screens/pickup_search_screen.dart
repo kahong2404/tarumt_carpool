@@ -1,22 +1,24 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
+import 'package:location/location.dart' as loc;
+import 'package:permission_handler/permission_handler.dart';
 
-class PickupSearchPage extends StatefulWidget {
-  const PickupSearchPage({super.key});
+import '../models/place_prediction.dart';
+import '../repositories/places_repository.dart';
+import '../widgets/location_search_bar.dart';
+
+class PickupSearchScreen extends StatefulWidget {
+  const PickupSearchScreen({super.key});
 
   @override
-  State<PickupSearchPage> createState() => _PickupSearchPageState();
+  State<PickupSearchScreen> createState() => _PickupSearchScreenState();
 }
 
-class _PickupSearchPageState extends State<PickupSearchPage> {
-  final String _googleApiKey = "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA";
+class _PickupSearchScreenState extends State<PickupSearchScreen> {
+  // ✅ Use your Places key here
+  final _placesRepo = PlacesRepository(apiKey: "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA");
 
   final TextEditingController _searchCtrl = TextEditingController();
-  Timer? _debounce;
 
   GoogleMapController? _mapCtrl;
 
@@ -25,194 +27,191 @@ class _PickupSearchPageState extends State<PickupSearchPage> {
   Marker? _marker;
 
   bool _loading = false;
+  bool _movedToUserOnce = false;
+
   String? _error;
 
   List<PlacePrediction> _predictions = [];
 
+  final loc.Location _location = loc.Location();
+
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
-  // -------------------------------
-  // Google Places AUTOCOMPLETE (HTTP)
-  // -------------------------------
-  Future<void> _searchPlaces(String input) async {
-    if (input.trim().isEmpty) {
-      setState(() => _predictions = []);
-      return;
+  Future<void> _initLocation() async {
+    try {
+      final perm = await Permission.locationWhenInUse.request();
+      if (!perm.isGranted) {
+        // permission not granted -> keep default TAR UMT
+        return;
+      }
+
+      final serviceEnabled = await _location.serviceEnabled();
+      if (!serviceEnabled) {
+        final ok = await _location.requestService();
+        if (!ok) return;
+      }
+
+      final pos = await _location.getLocation();
+      final lat = pos.latitude;
+      final lng = pos.longitude;
+      if (lat == null || lng == null) return;
+
+      final here = LatLng(lat, lng);
+
+      // ✅ set marker + update selected
+      if (!mounted) return;
+      setState(() {
+        _selectedLatLng = here;
+        _marker = Marker(
+          markerId: const MarkerId("pickup"),
+          position: here,
+          infoWindow: const InfoWindow(title: "Pickup", snippet: "Current location"),
+        );
+      });
+
+      // ✅ move camera ONLY ONCE
+      if (!_movedToUserOnce) {
+        _movedToUserOnce = true;
+        await _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(here, 17));
+      }
+    } catch (_) {
+      // fail -> keep TAR UMT default
     }
+  }
 
-    final uri = Uri.https(
-      "maps.googleapis.com",
-      "/maps/api/place/autocomplete/json",
-      {
-        "input": input,
-        "key": _googleApiKey,
-        "components": "country:my",
-      },
-    );
 
-    final res = await http.get(uri);
-    if (res.statusCode != 200) return;
-
-    final data = json.decode(res.body);
-    if (data["status"] != "OK") {
-      setState(() => _predictions = []);
-      return;
-    }
-
+  Future<void> _setMarker(LatLng latLng, {String? snippet}) async {
     setState(() {
-      _predictions = (data["predictions"] as List)
-          .map((e) => PlacePrediction.fromJson(e))
-          .toList();
+      _selectedLatLng = latLng;
+      _marker = Marker(
+        markerId: const MarkerId("pickup"),
+        position: latLng,
+        infoWindow: InfoWindow(title: "Pickup", snippet: snippet),
+      );
+      _predictions = [];
+      _error = null;
+    });
+
+    await _mapCtrl?.animateCamera(CameraUpdate.newLatLng(latLng));
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() {
+      _predictions = [];
+      _error = null;
     });
   }
 
-  // -------------------------------
-  // Google Place DETAILS (lat/lng)
-  // -------------------------------
-  Future<LatLng> _fetchLatLng(String placeId) async {
-    final uri = Uri.https(
-      "maps.googleapis.com",
-      "/maps/api/place/details/json",
-      {
-        "place_id": placeId,
-        "fields": "geometry/location",
-        "key": _googleApiKey,
-      },
+  Future<void> _onSearchChangedDebounced(String text) async {
+    // Make sure the clear (X) shows/hides
+    if (mounted) setState(() {});
+
+    final list = await _placesRepo.autocomplete(
+      input: text,
+      countryCode: "my",
+      biasLocation: _selectedLatLng,
+      radiusMeters: 30000,
     );
 
-    final res = await http.get(uri);
-    if (res.statusCode != 200) {
-      throw Exception("HTTP ${res.statusCode}");
-    }
-
-    final data = json.decode(res.body);
-    if (data["status"] != "OK") {
-      throw Exception(data["error_message"] ?? data["status"]);
-    }
-
-    final loc = data["result"]["geometry"]["location"];
-    return LatLng(
-      (loc["lat"] as num).toDouble(),
-      (loc["lng"] as num).toDouble(),
-    );
+    if (!mounted) return;
+    setState(() => _predictions = list);
   }
 
-  // -------------------------------
-  // When user taps a prediction
-  // -------------------------------
   Future<void> _onPredictionSelected(PlacePrediction p) async {
     setState(() {
       _searchCtrl.text = p.description;
-      _searchCtrl.selection = TextSelection.fromPosition(
-        TextPosition(offset: _searchCtrl.text.length),
-      );
+      _searchCtrl.selection =
+          TextSelection.fromPosition(TextPosition(offset: _searchCtrl.text.length));
       _predictions = [];
       _loading = true;
       _error = null;
     });
 
     try {
-      final latLng = await _fetchLatLng(p.placeId);
-
-      setState(() {
-        _selectedLatLng = latLng;
-        _marker = Marker(
-          markerId: const MarkerId("pickup"),
-          position: latLng,
-          infoWindow: InfoWindow(title: "Pickup", snippet: p.description),
-        );
-      });
-
-      await _mapCtrl?.animateCamera(
-        CameraUpdate.newLatLngZoom(latLng, 17),
-      );
-    } catch (e) {
-      setState(() => _error = "Failed to load location");
+      final latLng = await _placesRepo.fetchLatLng(p.placeId);
+      await _setMarker(latLng, snippet: p.description);
+      await _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 17));
+    } catch (_) {
+      if (mounted) setState(() => _error = "Failed to load location");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  // -------------------------------
-  // UI
-  // -------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // MAP
           GoogleMap(
             initialCameraPosition: const CameraPosition(
               target: _defaultTarget,
               zoom: 16,
             ),
-            onMapCreated: (c) => _mapCtrl = c,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
+            onMapCreated: (c) async {
+              _mapCtrl = c;
+              await _initLocation();
+            },
+            onTap: (latLng) => _setMarker(latLng, snippet: "Pinned on map"),
+
+            // ✅ HIDE DEFAULT BUTTONS
+            myLocationEnabled: true,        // keep blue dot
+            myLocationButtonEnabled: false, // ❌ hide location button
+            compassEnabled: false,           // ❌ hide rotation / compass button
+            zoomControlsEnabled: false,      // hide + / -
             markers: {
               if (_marker != null) _marker!,
             },
           ),
 
-          // SEARCH BAR + RESULT LIST
+// CUSTOM MY LOCATION BUTTON (bottom-right, above pickup)
+          Positioned(
+            right: 16,
+            bottom: 90, // adjust if needed
+            child: SafeArea(
+              child: Material(
+                elevation: 4,
+                shape: const CircleBorder(),
+                color: Colors.white,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () async {
+                    _movedToUserOnce = false; // so it can re-center again
+                    await _initLocation();
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Icon(
+                      Icons.my_location,
+                      color: Colors.black87,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
               child: Column(
                 children: [
-                  Material(
-                    elevation: 2,
-                    borderRadius: BorderRadius.circular(28),
-                    child: Container(
-                      height: 46,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                          ),
-
-                          Expanded(
-                            child: TextField(
-                              controller: _searchCtrl,
-                              decoration: const InputDecoration(
-                                hintText: "Search location",
-                                border: InputBorder.none,
-                              ),
-                              onChanged: (text) {
-                                _debounce?.cancel();
-                                _debounce = Timer(
-                                  const Duration(milliseconds: 400),
-                                      () => _searchPlaces(text),
-                                );
-                              },
-                            ),
-                          ),
-
-                          _loading
-                              ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                              : const Icon(Icons.search),
-                        ],
-                      ),
-                    ),
+                  // Search bar
+                  LocationSearchBar(
+                    controller: _searchCtrl,
+                    loading: _loading,
+                    onBack: () => Navigator.pop(context),
+                    onClear: _clearSearch,
+                    onChangedDebounced: _onSearchChangedDebounced,
                   ),
 
-                  // AUTOCOMPLETE RESULTS
+                  // Prediction list
                   if (_predictions.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.only(top: 6),
@@ -245,17 +244,13 @@ class _PickupSearchPageState extends State<PickupSearchPage> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.redAccent),
-                      ),
+                      child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
                     ),
                 ],
               ),
             ),
           ),
 
-          // PICKUP BUTTON
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -266,24 +261,18 @@ class _PickupSearchPageState extends State<PickupSearchPage> {
                   height: 48,
                   child: ElevatedButton(
                     onPressed: () {
-                      // TODO: Pickup Here action
-                      // Navigator.pop(context, {
-                      //   "lat": _selectedLatLng.latitude,
-                      //   "lng": _selectedLatLng.longitude,
-                      // });
+                      Navigator.pop(context, {
+                        "lat": _selectedLatLng.latitude,
+                        "lng": _selectedLatLng.longitude,
+                      });
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E73FF),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     child: const Text(
                       "Pickup Here",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                     ),
                   ),
                 ),
@@ -292,26 +281,6 @@ class _PickupSearchPageState extends State<PickupSearchPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// -------------------------------
-// Prediction model
-// -------------------------------
-class PlacePrediction {
-  final String description;
-  final String placeId;
-
-  PlacePrediction({
-    required this.description,
-    required this.placeId,
-  });
-
-  factory PlacePrediction.fromJson(Map<String, dynamic> json) {
-    return PlacePrediction(
-      description: json["description"],
-      placeId: json["place_id"],
     );
   }
 }

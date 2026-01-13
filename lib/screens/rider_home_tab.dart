@@ -29,7 +29,7 @@ class RiderHomeTab extends StatelessWidget {
                 onSearchTap: () async {
                   final pickup = await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => PickupSearchPage()),
+                    MaterialPageRoute(builder: (_) => PickupSearchScreen()),
                   );
 
                   if (pickup != null) {
