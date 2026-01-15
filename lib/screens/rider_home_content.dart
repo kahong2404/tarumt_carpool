@@ -30,7 +30,7 @@ class RiderHomeContent extends StatelessWidget {
                 onSearchTap: () async {
                   final pickup = await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const PickupSearchPage()),
+                    MaterialPageRoute(builder: (_) => const PickupSearchScreen()),
                   );
                   if (pickup != null) debugPrint("Pickup selected: $pickup");
                 },
