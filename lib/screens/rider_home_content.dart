@@ -1,10 +1,11 @@
+//only the header + offers UI
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 import 'package:tarumt_carpool/screens/pickup_search_screen.dart';
 
-class RiderHomeTab extends StatelessWidget {
-  const RiderHomeTab({super.key});
+class RiderHomeContent extends StatelessWidget {
+  const RiderHomeContent({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -29,14 +30,10 @@ class RiderHomeTab extends StatelessWidget {
                 onSearchTap: () async {
                   final pickup = await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => PickupSearchPage()),
+                    MaterialPageRoute(builder: (_) => const PickupSearchPage()),
                   );
-
-                  if (pickup != null) {
-                    print("Pickup selected: $pickup");
-                  }
+                  if (pickup != null) debugPrint("Pickup selected: $pickup");
                 },
-
               ),
               const SizedBox(height: 12),
               Row(
@@ -73,9 +70,7 @@ class RiderHomeTab extends StatelessWidget {
             ],
           ),
         ),
-
         const SizedBox(height: 12),
-
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -87,49 +82,47 @@ class RiderHomeTab extends StatelessWidget {
   }
 }
 
+// ✅ FIX: InkWell must have Material above it
 class _SearchBar extends StatelessWidget {
   final String hintText;
   final VoidCallback onSearchTap;
 
-  const _SearchBar({
-    required this.hintText,
-    required this.onSearchTap,
-  });
+  const _SearchBar({required this.hintText, required this.onSearchTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(28),
-      onTap: onSearchTap,
-      child: Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withOpacity(0.30)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                hintText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onSearchTap,
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withOpacity(0.30)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hintText,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
               ),
-            ),
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                shape: BoxShape.circle,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.search, color: Colors.white),
               ),
-              child: const Icon(Icons.search, color: Colors.white),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -168,8 +161,7 @@ class _QuickTile extends StatelessWidget {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment:
-            centerTitle ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+            crossAxisAlignment: centerTitle ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               Icon(icon, color: Colors.white, size: 20),
               const SizedBox(height: 6),
@@ -206,10 +198,7 @@ class _EmptyRideState extends StatelessWidget {
         children: [
           const Icon(Icons.directions_car_outlined, size: 64, color: Colors.black26),
           const SizedBox(height: 16),
-          const Text(
-            'No ride offers available',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
+          const Text('No ride offers available', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           const Text(
             'There are currently no drivers offering rides.\nPlease try again later.',
@@ -221,11 +210,6 @@ class _EmptyRideState extends StatelessWidget {
             onPressed: () {},
             icon: Icon(Icons.refresh, color: color),
             label: const Text('Refresh'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: color,
-              side: BorderSide(color: color),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            ),
           ),
         ],
       ),
@@ -235,7 +219,6 @@ class _EmptyRideState extends StatelessWidget {
 
 class _OpenOffersList extends StatelessWidget {
   _OpenOffersList({super.key});
-
   final _repo = DriverOfferRepository();
 
   @override
@@ -264,7 +247,7 @@ class _OpenOffersList extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6, bottom: 14),
           itemCount: offers.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) => _DriverOfferCard(offer: offers[index]),
+          itemBuilder: (context, i) => _DriverOfferCard(offer: offers[i]),
         );
       },
     );
@@ -277,7 +260,7 @@ class _DriverOfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DateTime? dt = offer.rideDateTime;
+    final dt = offer.rideDateTime;
 
     final dateText = dt == null
         ? 'Date not set'
@@ -307,59 +290,35 @@ class _DriverOfferCard extends StatelessWidget {
           Text.rich(
             TextSpan(
               children: [
-                const TextSpan(
-                  text: "From: ",
-                  style: TextStyle(color: Colors.black54, fontSize: 12.5),
-                ),
-                TextSpan(
-                  text: offer.pickup,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
+                const TextSpan(text: "From: ", style: TextStyle(color: Colors.black54, fontSize: 12.5)),
+                TextSpan(text: offer.pickup, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
               ],
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-
           const SizedBox(height: 3),
-
           Text.rich(
             TextSpan(
               children: [
-                const TextSpan(
-                  text: "To: ",
-                  style: TextStyle(color: Colors.black54, fontSize: 12.5),
-                ),
-                TextSpan(
-                  text: offer.destination,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
+                const TextSpan(text: "To: ", style: TextStyle(color: Colors.black54, fontSize: 12.5)),
+                TextSpan(text: offer.destination, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
               ],
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-
           const SizedBox(height: 6),
           Text(
             '$dateText ${timeText.isEmpty ? "" : "• $timeText"} • ${offer.seatsAvailable} seat(s)',
             style: const TextStyle(color: Colors.black54, height: 1.3),
           ),
           const SizedBox(height: 10),
-
           Row(
             children: [
-              Text(
-                'RM ${offer.fare.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              Text('RM ${offer.fare.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w800)),
               const Spacer(),
-              OutlinedButton(
-                onPressed: () {
-                  // TODO: open details page later
-                },
-                child: const Text('View'),
-              ),
+              OutlinedButton(onPressed: () {}, child: const Text('View')),
             ],
           ),
         ],

@@ -6,7 +6,6 @@ import 'package:tarumt_carpool/models/app_user.dart';
 import 'package:tarumt_carpool/screens/edit_post_screen.dart';
 import 'package:tarumt_carpool/screens/create_post_rides_screen.dart';
 
-
 class DriverHomePage extends StatefulWidget {
   const DriverHomePage({super.key});
 
@@ -47,17 +46,29 @@ class _DriverHomePageState extends State<DriverHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // =========================
-                // Header: Welcome
+                // Header: Welcome (NAME ONLY ✅)
                 // =========================
                 FutureBuilder<AppUser?>(
                   future: _meFuture,
                   builder: (context, snap) {
                     String displayName = "Driver";
+
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return Text(
+                        "Welcome, ...",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      );
+                    }
+
                     if (snap.hasData && snap.data != null) {
                       final user = snap.data!;
-                      final name = user.email.trim();
+                      final name = user.name.trim(); // ✅ SHOW NAME
                       if (name.isNotEmpty) displayName = name;
                     }
+
                     return Text(
                       "Welcome, $displayName",
                       style: theme.textTheme.titleLarge?.copyWith(
@@ -67,6 +78,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     );
                   },
                 ),
+
                 const SizedBox(height: 18),
 
                 // =========================
@@ -88,7 +100,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                           context,
                           MaterialPageRoute(builder: (_) => const PostRides()),
                         );
-                        await _onRefresh(); // refresh after coming back
+                        await _onRefresh();
                       },
                     ),
                   ],
@@ -126,7 +138,6 @@ class _DriverHomePageState extends State<DriverHomePage> {
       ),
     );
   }
-
 }
 
 class _MyRidePostsPreview extends StatelessWidget {
@@ -139,15 +150,26 @@ class _MyRidePostsPreview extends StatelessWidget {
     return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
 
-  Future<bool> _confirm(BuildContext context, String title, String msg, String okText) async {
+  Future<bool> _confirm(
+      BuildContext context,
+      String title,
+      String msg,
+      String okText,
+      ) async {
     final res = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(title),
         content: Text(msg),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Back")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: Text(okText)),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Back"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(okText),
+          ),
         ],
       ),
     );
@@ -155,14 +177,15 @@ class _MyRidePostsPreview extends StatelessWidget {
   }
 
   Widget _statusBadge(DriverOfferStatus status) {
-    final label = statusToString(status); // from your model
-    // simple color choice
+    final label = statusToString(status);
+
     final Color bg = switch (status) {
       DriverOfferStatus.open => const Color(0xFFE7F3FF),
       DriverOfferStatus.cancelled => const Color(0xFFFFE9E9),
       DriverOfferStatus.booked => const Color(0xFFFFF4D6),
       DriverOfferStatus.completed => const Color(0xFFE8F7EE),
     };
+
     final Color fg = switch (status) {
       DriverOfferStatus.open => const Color(0xFF2B6CFF),
       DriverOfferStatus.cancelled => Colors.red,
@@ -227,7 +250,7 @@ class _MyRidePostsPreview extends StatelessWidget {
         return Column(
           children: [
             ...preview.map((o) {
-              final offerId = o.offerId; // should exist from Firestore doc id
+              final offerId = o.offerId;
 
               return InkWell(
                 borderRadius: BorderRadius.circular(14),
@@ -240,7 +263,6 @@ class _MyRidePostsPreview extends StatelessWidget {
                       builder: (_) => EditPostScreenRides(offerId: offerId),
                     ),
                   );
-                  // No manual refresh needed: stream updates automatically
                 },
                 child: Container(
                   width: double.infinity,
@@ -267,13 +289,10 @@ class _MyRidePostsPreview extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // title + status badge
-// pickup + destination + status badge
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -281,7 +300,6 @@ class _MyRidePostsPreview extends StatelessWidget {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Pickup
                                       Text.rich(
                                         TextSpan(
                                           children: [
@@ -304,10 +322,7 @@ class _MyRidePostsPreview extends StatelessWidget {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-
                                       const SizedBox(height: 3),
-
-                                      // Destination
                                       Text.rich(
                                         TextSpan(
                                           children: [
@@ -333,14 +348,10 @@ class _MyRidePostsPreview extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-
                                 const SizedBox(width: 8),
-
-                                // Status badge stays the same
                                 _statusBadge(o.status),
                               ],
                             ),
-
                             const SizedBox(height: 6),
                             Text(
                               "Time: ${_fmtDateTime(o.rideDateTime)}",
@@ -350,17 +361,10 @@ class _MyRidePostsPreview extends StatelessWidget {
                               "Seats: ${o.seatsAvailable}  •  RM ${o.fare.toStringAsFixed(2)}",
                               style: const TextStyle(fontSize: 12.5, color: Colors.black54),
                             ),
-
                             const SizedBox(height: 10),
-
-                            // action buttons
                             Row(
                               children: [
-
-                                const SizedBox(width: 8),
-
                                 const Spacer(),
-
                                 IconButton(
                                   tooltip: "Delete",
                                   onPressed: (offerId == null)
@@ -387,16 +391,12 @@ class _MyRidePostsPreview extends StatelessWidget {
                 ),
               );
             }),
-
             if (offers.length > 3)
               SizedBox(
                 width: double.infinity,
                 height: 44,
                 child: OutlinedButton(
-                  onPressed: () {
-                    // Optional: navigate to full page list
-                    // Navigator.push(context, MaterialPageRoute(builder: (_) => const MyPostedRidesPage()));
-                  },
+                  onPressed: () {},
                   child: const Text("View all my posts"),
                 ),
               ),
@@ -407,8 +407,6 @@ class _MyRidePostsPreview extends StatelessWidget {
   }
 }
 
-
-/// Quick Action button (icon + label like your screenshot)
 class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -419,7 +417,6 @@ class _QuickAction extends StatelessWidget {
     required this.title,
     required this.onTap,
   });
-
 
   @override
   Widget build(BuildContext context) {
@@ -434,13 +431,13 @@ class _QuickAction extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF2FF), // light blue background
+                color: const Color(0xFFEAF2FF),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
                 size: 26,
-                color: const Color(0xFF2B6CFF), // primary blue
+                color: const Color(0xFF2B6CFF),
               ),
             ),
             const SizedBox(height: 8),
@@ -460,7 +457,6 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-/// Empty state widget for My Ride Post (shows when no posts)
 class _EmptyRidePostState extends StatelessWidget {
   final VoidCallback onCreateTap;
 
@@ -539,7 +535,6 @@ class _EmptyRidePostState extends StatelessWidget {
   }
 }
 
-/// Bottom navigation like screenshot (home, list, bell, profile)
 class _DriverBottomNav extends StatelessWidget {
   final int currentIndex;
 
@@ -556,27 +551,12 @@ class _DriverBottomNav extends StatelessWidget {
       showUnselectedLabels: false,
       onTap: (index) {
         // TODO: handle navigation later
-        // Example:
-        // if(index==0) Navigator.push(...DriverHomePage)
-        // if(index==1) Navigator.push(...RideHistoryPage)
       },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: "Home",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.receipt_long_outlined),
-          label: "Posts",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.notifications_none_outlined),
-          label: "Notifications",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: "Profile",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), label: "Posts"),
+        BottomNavigationBarItem(icon: Icon(Icons.notifications_none_outlined), label: "Notifications"),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile"),
       ],
     );
   }
