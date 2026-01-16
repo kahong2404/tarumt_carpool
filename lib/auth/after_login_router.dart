@@ -20,44 +20,40 @@ class AfterLoginRouter extends StatelessWidget {
   AfterLoginRouter({super.key});
 
   final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
   final _users = UserRepository();
 
   Future<Widget> _route() async {
-    final user = _auth.currentUser;
-    if (user == null) return const LoginScreen();
-
-    final uid = user.uid;
+    final user = _auth.currentUser; //If nobody is logged in → show login screen
+    if (user == null) return const LoginScreen(); //If nobody is logged in → show login screen.
 
     try {
-      // ✅ 1) ADMIN CHECK
-      final adminDoc = await _db.collection('admins').doc(uid).get();
-      if (adminDoc.exists) {
-        return AdminGuard(child: const AdminHomePage());
-      }
-
-      // ✅ 2) NORMAL USER CHECK
+      // Reads Firestore profile for the current user, returns AppUser or null.
       final AppUser? me = await _users.getCurrentUser();
 
+      // Profile missing in Firestore
       if (me == null) {
-        // 👈 SAME fallback used here
         return const _FallbackScreen(
           title: kProfileMissingTitle,
           message: kProfileMissingMessage,
         );
       }
 
+      // ✅ Role-based routing (ALL roles inside users collection)
+      if (me.role == 'admin') {
+        return AdminGuard(child: const AdminHomePage());
+      }
+
       if (me.role == 'driver') return const DriverHomePage();
+
+      // default rider
       return const RiderTabScaffold();
     } catch (_) {
-      // 👈 SAME fallback used here (admin OR user failure)
       return const _FallbackScreen(
         title: kProfileMissingTitle,
         message: kProfileMissingMessage,
       );
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Widget>(

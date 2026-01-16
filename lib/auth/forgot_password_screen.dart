@@ -20,27 +20,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _loading = false;
   List<String> _errors = [];
 
-  @override
+  @override // clean up the controller memory when the screen is going away
   void dispose() {
     _emailCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _onSendReset() async {
+    //Hides keyboard
+    // Clears previous error messages
+    // Forces UI refresh
     FocusScope.of(context).unfocus();
     setState(() => _errors = []);
 
     final errs = Validators.validateForgotPasswordAll(email: _emailCtrl.text);
     if (errs.isNotEmpty) {
-      setState(() => _errors = errs);
-      return;
+      setState(() => _errors = errs); //Upate the UI to show the error message
+      return; //Function stop here
     }
 
-    setState(() => _loading = true);
+    setState(() => _loading = true); //Button show loading
     try {
       await _auth.resetPassword(_emailCtrl.text);
-
-      if (!mounted) return;
+//mounted == true means this screen is still on the screen
+// mounted == false means this screen has already been removed (disposed)
+      if (!mounted) return; // It the the screeb was stop stop update
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Reset link sent! Check your email.')),
       );
@@ -49,7 +53,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       setState(() => _errors = [AppErrors.friendly(e)]);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false); // the button clickable whether sucess or dont siccess
     }
   }
 

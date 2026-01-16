@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'login_screen.dart';
-
 class AdminGuard extends StatelessWidget {
   final Widget child;
   const AdminGuard({super.key, required this.child});
@@ -12,8 +10,12 @@ class AdminGuard extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return false;
 
-    final doc = await FirebaseFirestore.instance.collection('admins').doc(uid).get();
-    return doc.exists;
+    final doc =
+    await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (!doc.exists) return false;
+
+    final data = doc.data()!;
+    return (data['role'] as String?) == 'admin';
   }
 
   @override

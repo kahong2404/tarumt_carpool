@@ -18,7 +18,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _auth = AuthService();
 
-  int _roleIndex = 0; // 0 Rider, 1 Driver
+  int _roleIndex = 0; // 0 = Rider, 1 = Driver
   String get _role => _roleIndex == 0 ? 'rider' : 'driver';
 
   final _emailCtrl = TextEditingController();
@@ -28,15 +28,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _pwCtrl = TextEditingController();
   final _pw2Ctrl = TextEditingController();
 
-  bool _pwHidden = true;
-  bool _pw2Hidden = true;
-  bool _loading = false;
-  List<String> _errors = [];
+  bool _pwHidden = true;  // hide show password
+  bool _pw2Hidden = true; // hide show confirm password
+  bool _loading = false; // show loading on button
+  List<String> _errors = []; //stores validation and backend error
 
-  final Color brandBlue = const Color(0xFF1E73FF);
+  final Color brandBlue = const Color(0xFF1E73FF); //the,e Color
 
   @override
-  void dispose() {
+  void dispose() { // dispose means after leave this page, flutter fress memory from controllers
     _emailCtrl.dispose();
     _staffIdCtrl.dispose();
     _nameCtrl.dispose();
@@ -47,10 +47,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _onSignUp() async {
-    FocusScope.of(context).unfocus();
-    setState(() => _errors = []);
+    FocusScope.of(context).unfocus(); // unfocus the textField
+    setState(() => _errors = []); // clear the the old error
 
-    final errs = Validators.validateRegisterAll(
+    final errs = Validators.validateRegisterField(
       email: _emailCtrl.text,
       staffId: _staffIdCtrl.text,
       name: _nameCtrl.text,
@@ -60,11 +60,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (errs.isNotEmpty) {
-      setState(() => _errors = errs);
-      return;
+      setState(() => _errors = errs); //  store the error and rebuid the UI (Flutter runs build() again)
+      return; // exit the SignUp function
     }
 
-    setState(() => _loading = true);
+    setState(() => _loading = true); //show loading in the button
     try {
       await _auth.register(
         role: _role,
@@ -75,22 +75,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _pwCtrl.text,
       );
 
-      if (!mounted) return;
+      if (!mounted) return; // If the screen is already closed, stop this register function now. Don’t show snackbar, don’t navigate, don’t update UI
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Account created successfully!')),
-      );
+      );  // Show success message after register
 
-      Future.delayed(const Duration(milliseconds: 600), () {
+      Future.delayed(const Duration(milliseconds: 200), () {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+        ); //  go to login with delay 2 seconds
       });
     } catch (e) {
-      setState(() => _errors = [AppErrors.friendly(e)]);
+      setState(() => _errors = [AppErrors.friendly(e)]); //set triggers UI rebuild so the user sees the error
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false); //stop showing loading on the button
     }
   }
 

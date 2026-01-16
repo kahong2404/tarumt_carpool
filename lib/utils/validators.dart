@@ -43,7 +43,7 @@ class Validators {
   }
 
   // ✅ show ALL errors (Register)
-  static List<String> validateRegisterAll({
+  static List<String> validateRegisterField({
     required String email,
     required String staffId,
     required String name,

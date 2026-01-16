@@ -18,12 +18,12 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    // (UI already validates, but keep safety here)
+    // Double check the field again
     if (!Validators.isTarumtEmail(email)) {
       throw Exception(AppStrings.invalidTarumtEmail);
     }
     if (!Validators.isValidStaffId(staffId)) {
-      throw Exception(AppStrings.invalidStaffId); // ✅ 7 digits
+      throw Exception(AppStrings.invalidStaffId);
     }
     if (!Validators.isValidName(name)) {
       throw Exception(AppStrings.invalidName);
@@ -38,11 +38,11 @@ class AuthService {
     final cred = await _auth.createUserWithEmailAndPassword(
       email: email.trim().toLowerCase(),
       password: password,
-    );
+    ); // Creates account in Firebase Auth and return User credential
 
-    final uid = cred.user!.uid;
+    final uid = cred.user!.uid; // get the uid by the User credential
 
-    final appUser = AppUser(
+    final appUser = AppUser( //creates one AppUser object that represents the user’s profile data
       uid: uid,
       staffId: staffId.trim(),
       name: name.trim(),
@@ -54,10 +54,10 @@ class AuthService {
     );
 
     try {
-      await _users.createUser(appUser);
+      await _users.createUser(appUser); //to save user profile in the firestore
     } catch (e) {
-      await cred.user?.delete();
-      rethrow;
+      await cred.user?.delete();  // deletes the Firebase Auth account that was just created
+      rethrow; //same error back to AuthService.register() because it only can check the email and password need to create account to check the firestore
     }
   }
 
