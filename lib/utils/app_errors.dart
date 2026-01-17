@@ -41,10 +41,10 @@ class AppErrors {
 
     // ✅ Your custom repo exception strings
     final msg = e.toString();
-    if (msg.contains('Student/Staff ID already exists')) {
+    if (msg.contains('Student/Staff ID already registered')) {
       return AppStrings.staffIdAlreadyRegistered;
     }
-    if (msg.contains('Phone number already exists')) {
+    if (msg.contains('Phone number already registered.')) {
       return AppStrings.phoneAlreadyRegistered;
     }
     if (msg.contains('Email already registered')) {
@@ -54,4 +54,27 @@ class AppErrors {
     // fallback (safe)
     return AppStrings.genericError;
   }
+
+  static List<String> friendlyList(Object e) {
+    // Firebase auth errors -> still return single message in a list
+    if (e is FirebaseAuthException) {
+      return [friendly(e)];
+    }
+
+    // Custom exception that contains multiple lines
+    final msg = e.toString().replaceFirst('Exception: ', '').trim();
+
+    // If it's multi-line, split into multiple errors
+    if (msg.contains('\n')) {
+      return msg
+          .split('\n')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+
+    // Otherwise fallback to your existing mapping (single message)
+    return [friendly(e)];
+  }
+
 }

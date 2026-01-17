@@ -50,7 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusScope.of(context).unfocus(); // unfocus the textField
     setState(() => _errors = []); // clear the the old error
 
-    final errs = Validators.validateRegisterField(
+    final errs = Validators.validateRegisterUI(
       email: _emailCtrl.text,
       staffId: _staffIdCtrl.text,
       name: _nameCtrl.text,
@@ -88,7 +88,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ); //  go to login with delay 2 seconds
       });
     } catch (e) {
-      setState(() => _errors = [AppErrors.friendly(e)]); //set triggers UI rebuild so the user sees the error
+      setState(() => _errors = AppErrors.friendlyList(e));
+      //set triggers UI rebuild so the user sees the error
     } finally {
       if (mounted) setState(() => _loading = false); //stop showing loading on the button
     }
