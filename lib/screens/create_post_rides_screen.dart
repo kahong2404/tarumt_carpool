@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:google_places_flutter/google_places_flutter.dart';
-import 'package:google_places_flutter/model/prediction.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
-
+import 'package:tarumt_carpool/screens/location_select_screen.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
 
   @override
-  State<PostRides> createState() => _PostRides();
+  State<PostRides> createState() => _PostRidesState();
 }
 
-class _PostRides extends State<PostRides> {
+class _PostRidesState extends State<PostRides> {
   final _pickupCtrl = TextEditingController();
   final _destinationCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
@@ -25,9 +25,11 @@ class _PostRides extends State<PostRides> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
-  bool _loading = false;
+  // ✅ Save coordinates too (better than text only)
+  LatLng? _pickupLatLng;
+  LatLng? _destLatLng;
 
-  static const String _googleApiKey = "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA";
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -52,26 +54,87 @@ class _PostRides extends State<PostRides> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // =========================
+  // ✅ Select Start (Pickup)
+  // =========================
+  Future<void> _selectStartPoint() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationSelectScreen(
+          mode: LocationSelectMode.pickup,
+          initialTarget: const LatLng(3.2149, 101.7291),
+          autoMoveToMyLocation: false,
+          customMarkerTitle: "Start",
+          customButtonText: "Set Starting Point",
+          customResultKey: "start",
+          customCurrentLocationSnippet: "My current location",
+        ),
+      ),
     );
+
+    if (result == null) return;
+
+    setState(() {
+      _pickupLatLng = LatLng(result["lat"], result["lng"]);
+      final address = (result["address"] ?? "").toString().trim();
+      _pickupCtrl.text = address.isEmpty ? "Selected location" : address;
+    });
+  }
+
+  // =========================
+  // ✅ Select Destination
+  // =========================
+  Future<void> _selectDestination() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationSelectScreen(
+          mode: LocationSelectMode.dropoff,
+          initialTarget: const LatLng(3.2149, 101.7291),
+          autoMoveToMyLocation: false,
+          customMarkerTitle: "Destination",
+          customButtonText: "Set Destination",
+          customResultKey: "destination",
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _destLatLng = LatLng(result["lat"], result["lng"]);
+      final address = (result["address"] ?? "").toString().trim();
+      _destinationCtrl.text = address.isEmpty ? "Selected location" : address;
+    });
   }
 
   Future<void> _postRide() async {
     final pickup = _pickupCtrl.text.trim();
     final dest = _destinationCtrl.text.trim();
 
-    if (pickup.isEmpty) return _snack("Please enter pickup location.");
-    if (dest.isEmpty) return _snack("Please enter destination.");
+    if (pickup.isEmpty || _pickupLatLng == null) {
+      return _snack("Please select starting point.");
+    }
+    if (dest.isEmpty || _destLatLng == null) {
+      return _snack("Please select destination.");
+    }
     if (_selectedDate == null) return _snack("Please select date.");
     if (_selectedTime == null) return _snack("Please select time.");
 
     final seats = int.tryParse(_seatsCtrl.text.trim());
-    if (seats == null || seats <= 0) return _snack("Seats must be a number > 0.");
+    if (seats == null || seats <= 0) {
+      return _snack("Seats must be a number > 0.");
+    }
 
     final fareText = _fareCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '');
     final fare = double.tryParse(fareText);
-    if (fare == null || fare < 0) return _snack("Fare must be a valid number (e.g. 5.00).");
+    if (fare == null || fare < 0) {
+      return _snack("Fare must be a valid number (e.g. 5.00).");
+    }
 
     final dt = DateTime(
       _selectedDate!.year,
@@ -88,8 +151,10 @@ class _PostRides extends State<PostRides> {
     setState(() => _loading = true);
 
     try {
+      // ✅ If your DriverOffer DOES NOT have lat/lng fields, keep this as-is.
+      // If you WANT to store coordinates, add fields in DriverOffer and pass them here.
       final offer = DriverOffer(
-        driverId: '', // Repository will replace with current user uid
+        driverId: '', // repo will replace with current uid
         pickup: pickup,
         destination: dest,
         rideDateTime: dt,
@@ -134,44 +199,30 @@ class _PostRides extends State<PostRides> {
             ),
             const SizedBox(height: 18),
 
-            GooglePlaceAutoCompleteTextField(
-              textEditingController: _pickupCtrl,
-              googleAPIKey: _googleApiKey,
-              debounceTime: 400,
-              isLatLngRequired: false,
-              inputDecoration: _dec(
-                'Pick Up Location',
+            // ✅ Start Point (driver)
+            TextField(
+              controller: _pickupCtrl,
+              readOnly: true,
+              decoration: _dec(
+                'Starting Point',
                 Icons.location_on_outlined,
-                hint: 'Search pickup location',
+                hint: 'Tap to select starting point',
               ),
-              itemClick: (Prediction p) {
-                _pickupCtrl.text = p.description ?? '';
-                _pickupCtrl.selection = TextSelection.fromPosition(
-                  TextPosition(offset: _pickupCtrl.text.length),
-                );
-              },
+              onTap: _loading ? null : _selectStartPoint,
             ),
-
             const SizedBox(height: 12),
 
-            GooglePlaceAutoCompleteTextField(
-              textEditingController: _destinationCtrl,
-              googleAPIKey: _googleApiKey,
-              debounceTime: 400,
-              isLatLngRequired: false,
-              inputDecoration: _dec(
+            // ✅ Destination
+            TextField(
+              controller: _destinationCtrl,
+              readOnly: true,
+              decoration: _dec(
                 'Destination',
                 Icons.flag_outlined,
-                hint: 'Search destination',
+                hint: 'Tap to select destination',
               ),
-              itemClick: (Prediction p) {
-                _destinationCtrl.text = p.description ?? '';
-                _destinationCtrl.selection = TextSelection.fromPosition(
-                  TextPosition(offset: _destinationCtrl.text.length),
-                );
-              },
+              onTap: _loading ? null : _selectDestination,
             ),
-
             const SizedBox(height: 12),
 
             Row(
@@ -187,12 +238,14 @@ class _PostRides extends State<PostRides> {
                       final picked = await showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        lastDate:
+                        DateTime.now().add(const Duration(days: 365)),
                         initialDate: DateTime.now(),
                       );
                       if (picked != null) {
                         _selectedDate = picked;
-                        _dateCtrl.text = '${picked.day}/${picked.month}/${picked.year}';
+                        _dateCtrl.text =
+                        '${picked.day}/${picked.month}/${picked.year}';
                         setState(() {});
                       }
                     },
@@ -232,8 +285,13 @@ class _PostRides extends State<PostRides> {
 
             TextField(
               controller: _fareCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: _dec('Ride Fare', Icons.attach_money_outlined, hint: 'RM 0.00'),
+              keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+              decoration: _dec(
+                'Ride Fare',
+                Icons.attach_money_outlined,
+                hint: 'RM 0.00',
+              ),
             ),
             const SizedBox(height: 14),
 
@@ -267,17 +325,21 @@ class _PostRides extends State<PostRides> {
               height: 48,
               child: ElevatedButton(
                 onPressed: _loading ? null : _postRide,
-                style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF2B6CFF)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2B6CFF),
+                ),
                 child: _loading
                     ? const SizedBox(
                   height: 20,
                   width: 20,
-                  
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
                     : const Text(
                   'Post Your Ride',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

@@ -44,6 +44,22 @@ class PlacesRepository {
         .toList();
   }
 
+  Future<String> reverseGeocode(LatLng latLng) async {
+    final url =
+        'https://maps.googleapis.com/maps/api/geocode/json'
+        '?latlng=${latLng.latitude},${latLng.longitude}'
+        '&key=$apiKey';
+
+    final res = await http.get(Uri.parse(url));
+    if (res.statusCode != 200) return '';
+
+    final json = jsonDecode(res.body);
+    final results = json['results'] as List<dynamic>;
+    if (results.isEmpty) return '';
+
+    return results.first['formatted_address'] ?? '';
+  }
+
   Future<LatLng> fetchLatLng(String placeId) async {
     final uri = Uri.https(
       "maps.googleapis.com",

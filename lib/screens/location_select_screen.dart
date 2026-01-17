@@ -1,7 +1,9 @@
+// location_select_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as loc;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:geocoding/geocoding.dart';
 
 import '../models/place_prediction.dart';
 import '../repositories/places_repository.dart';
@@ -14,25 +16,48 @@ class LocationSelectScreen extends StatefulWidget {
     super.key,
     required this.mode,
     required this.initialTarget,
+
+    // ✅ Make screen reusable (driver/rider)
+    this.autoMoveToMyLocation = true,
+    this.customMarkerTitle,
+    this.customButtonText,
+    this.customResultKey,
+    this.customCurrentLocationSnippet,
   });
 
   final LocationSelectMode mode;
   final LatLng initialTarget;
 
+  // ✅ NEW
+  final bool autoMoveToMyLocation;
+  final String? customMarkerTitle;
+  final String? customButtonText;
+  final String? customResultKey;
+  final String? customCurrentLocationSnippet;
+
   bool get isPickup => mode == LocationSelectMode.pickup;
 
-  String get markerTitle => isPickup ? "Pickup" : "Drop-off";
-  String get buttonText => isPickup ? "Pickup Here" : "Drop-off Here";
-  String get resultKey => isPickup ? "pickup" : "dropoff";
+  String get markerTitle =>
+      customMarkerTitle ?? (isPickup ? "Pickup" : "Drop-off");
+
+  String get buttonText =>
+      customButtonText ?? (isPickup ? "Pickup Here" : "Drop-off Here");
+
+  String get resultKey =>
+      customResultKey ?? (isPickup ? "pickup" : "dropoff");
+
   String get currentLocationSnippet =>
-      isPickup ? "Current location" : "Start from pickup area";
+      customCurrentLocationSnippet ??
+          (isPickup ? "Current location" : "Start from pickup area");
 
   @override
   State<LocationSelectScreen> createState() => _LocationSelectScreenState();
 }
 
 class _LocationSelectScreenState extends State<LocationSelectScreen> {
-  final _placesRepo = PlacesRepository(apiKey: "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA");
+  final _placesRepo = PlacesRepository(
+    apiKey: "AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA",
+  );
   final TextEditingController _searchCtrl = TextEditingController();
 
   GoogleMapController? _mapCtrl;
@@ -47,12 +72,14 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
   List<PlacePrediction> _predictions = [];
   final loc.Location _location = loc.Location();
 
+  // ✅ store the final human address
+  String? _selectedAddress;
+
   @override
   void initState() {
     super.initState();
     _selectedLatLng = widget.initialTarget;
 
-    // optional: show a marker immediately at initialTarget
     _marker = Marker(
       markerId: const MarkerId("selected"),
       position: _selectedLatLng,
@@ -64,6 +91,40 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  // ✅ Reverse geocode lat/lng -> readable address
+  Future<String?> _reverseGeocode(LatLng latLng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        latLng.latitude,
+        latLng.longitude,
+      );
+
+      if (placemarks.isEmpty) return null;
+      final p = placemarks.first;
+
+      final parts = <String>[
+        if ((p.name ?? '').trim().isNotEmpty) p.name!.trim(),
+        if ((p.thoroughfare ?? '').trim().isNotEmpty) p.thoroughfare!.trim(),
+        if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!.trim(),
+        if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
+        if ((p.administrativeArea ?? '').trim().isNotEmpty)
+          p.administrativeArea!.trim(),
+        if ((p.postalCode ?? '').trim().isNotEmpty) p.postalCode!.trim(),
+      ];
+
+      // remove duplicates
+      final clean = <String>[];
+      for (final s in parts) {
+        if (!clean.contains(s)) clean.add(s);
+      }
+
+      final address = clean.join(', ').trim();
+      return address.isEmpty ? null : address;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _initLocation() async {
@@ -85,14 +146,9 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
       final here = LatLng(lat, lng);
 
       if (!mounted) return;
-      setState(() {
-        _selectedLatLng = here;
-        _marker = Marker(
-          markerId: const MarkerId("selected"),
-          position: here,
-          infoWindow: InfoWindow(title: widget.markerTitle, snippet: widget.currentLocationSnippet),
-        );
-      });
+
+      // ✅ use _setMarker so it will also reverse-geocode
+      await _setMarker(here, snippet: widget.currentLocationSnippet);
 
       if (!_movedToUserOnce) {
         _movedToUserOnce = true;
@@ -101,16 +157,36 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
     } catch (_) {}
   }
 
+  // ✅ Set marker + reverse geocode (so no coordinates shown)
   Future<void> _setMarker(LatLng latLng, {String? snippet}) async {
+    if (!mounted) return;
+
     setState(() {
+      _loading = true;
       _selectedLatLng = latLng;
+      _predictions = [];
+      _error = null;
+
       _marker = Marker(
         markerId: const MarkerId("selected"),
         position: latLng,
         infoWindow: InfoWindow(title: widget.markerTitle, snippet: snippet),
       );
-      _predictions = [];
-      _error = null;
+    });
+
+    // ✅ get real address
+    final address = await _reverseGeocode(latLng);
+
+    if (!mounted) return;
+    setState(() {
+      _selectedAddress = address ?? snippet ?? "Selected location";
+
+      // ✅ always show the address inside the search bar
+      _searchCtrl.text = _selectedAddress!;
+      _searchCtrl.selection =
+          TextSelection.fromPosition(TextPosition(offset: _searchCtrl.text.length));
+
+      _loading = false;
     });
 
     await _mapCtrl?.animateCamera(CameraUpdate.newLatLng(latLng));
@@ -125,13 +201,20 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
   }
 
   Future<void> _onSearchChangedDebounced(String text) async {
-    if (mounted) setState(() {});
+    final q = text.trim();
+    if (q.isEmpty) {
+      if (!mounted) return;
+      setState(() => _predictions = []);
+      return;
+    }
+
     final list = await _placesRepo.autocomplete(
-      input: text,
+      input: q,
       countryCode: "my",
       biasLocation: _selectedLatLng,
       radiusMeters: 30000,
     );
+
     if (!mounted) return;
     setState(() => _predictions = list);
   }
@@ -148,13 +231,26 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
 
     try {
       final latLng = await _placesRepo.fetchLatLng(p.placeId);
+
+      // ✅ use _setMarker so it will reverse-geocode too
       await _setMarker(latLng, snippet: p.description);
+
       await _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 17));
     } catch (_) {
       if (mounted) setState(() => _error = "Failed to load location");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _confirm() {
+    Navigator.pop(context, {
+      "lat": _selectedLatLng.latitude,
+      "lng": _selectedLatLng.longitude,
+      "address": _selectedAddress ?? _searchCtrl.text.trim(), // ✅ real address
+      "label": widget.markerTitle,
+      "type": widget.resultKey,
+    });
   }
 
   @override
@@ -170,9 +266,8 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
             onMapCreated: (c) async {
               _mapCtrl = c;
 
-              // For pickup: try move to real current location
-              // For dropoff: you can keep this ON (still useful) or disable
-              if (widget.isPickup) {
+              // ✅ only auto-move if caller wants
+              if (widget.autoMoveToMyLocation) {
                 await _initLocation();
               }
             },
@@ -253,7 +348,10 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
                     ),
                 ],
               ),
@@ -269,21 +367,19 @@ class _LocationSelectScreenState extends State<LocationSelectScreen> {
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context, {
-                        "lat": _selectedLatLng.latitude,
-                        "lng": _selectedLatLng.longitude,
-                        "label": widget.markerTitle,
-                        "type": widget.resultKey,
-                      });
-                    },
+                    onPressed: _confirm,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E73FF),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: Text(
                       widget.buttonText,
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
