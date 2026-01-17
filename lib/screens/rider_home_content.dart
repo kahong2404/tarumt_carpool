@@ -1,8 +1,9 @@
 //only the header + offers UI
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
-import 'package:tarumt_carpool/screens/pickup_search_screen.dart';
+import 'package:tarumt_carpool/screens/location_select_screen.dart';
 
 class RiderHomeContent extends StatelessWidget {
   const RiderHomeContent({super.key});
@@ -30,9 +31,30 @@ class RiderHomeContent extends StatelessWidget {
                 onSearchTap: () async {
                   final pickup = await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const PickupSearchScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const LocationSelectScreen(
+                        mode: LocationSelectMode.pickup,
+                        initialTarget: LatLng(3.2149, 101.7291), // TARUMT default
+                      ),
+                    ),
                   );
-                  if (pickup != null) debugPrint("Pickup selected: $pickup");
+                  if (pickup == null) return;
+
+                  final pickupLatLng = LatLng(pickup["lat"], pickup["lng"]);
+
+                  final dropoff = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LocationSelectScreen(
+                        mode: LocationSelectMode.dropoff,
+                        initialTarget: pickupLatLng, // start camera near pickup
+                      ),
+                    ),
+                  );
+
+                  if (dropoff == null) return;
+
+                  final dropoffLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
                 },
               ),
               const SizedBox(height: 12),
