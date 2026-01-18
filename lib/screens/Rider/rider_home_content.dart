@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
+import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
-import 'package:tarumt_carpool/screens/location_select_screen.dart';
+import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
+import 'package:tarumt_carpool/widgets/seat_request_dialog.dart';
 
 class RiderHomeContent extends StatelessWidget {
   const RiderHomeContent({super.key});
@@ -34,7 +36,7 @@ class RiderHomeContent extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => const LocationSelectScreen(
                         mode: LocationSelectMode.pickup,
-                        initialTarget: LatLng(3.2149, 101.7291), // TARUMT default
+                        initialTarget: LatLng(3.2149, 101.7291),
                       ),
                     ),
                   );
@@ -47,14 +49,52 @@ class RiderHomeContent extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => LocationSelectScreen(
                         mode: LocationSelectMode.dropoff,
-                        initialTarget: pickupLatLng, // start camera near pickup
+                        initialTarget: pickupLatLng,
                       ),
                     ),
                   );
-
                   if (dropoff == null) return;
 
-                  final dropoffLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
+                  final originAddress = (pickup["address"] ?? "").toString().trim();
+                  final destinationAddress = (dropoff["address"] ?? "").toString().trim();
+
+                  // 🔹 Ask seat count
+                  final seatRequested = await showDialog<int>(
+                    context: context,
+                    builder: (_) => const SeatRequestDialog(),
+                  );
+
+                  if (seatRequested == null) return;
+
+// 🔹 Use current system time
+                  final now = DateTime.now();
+                  final rideDate =
+                      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+                  final rideTime =
+                      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+// 🔹 Save to Firestore
+                  final repo = RiderRequestRepository();
+
+                  try {
+                    final requestId = await repo.createRiderRequest(
+                      origin: originAddress,
+                      destination: destinationAddress,
+                      rideDate: rideDate,
+                      rideTime: rideTime,
+                      seatRequested: seatRequested,
+                    );
+
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Request created ($seatRequested seat)')),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 12),

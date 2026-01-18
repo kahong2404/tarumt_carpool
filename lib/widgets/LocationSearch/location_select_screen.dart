@@ -5,9 +5,10 @@ import 'package:location/location.dart' as loc;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geocoding/geocoding.dart';
 
-import '../models/place_prediction.dart';
-import '../repositories/places_repository.dart';
-import '../widgets/location_search_bar.dart';
+import '../../models/place_prediction.dart';
+import '../../repositories/places_repository.dart';
+import 'location_search_bar.dart';
+import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
 
 enum LocationSelectMode { pickup, dropoff }
 

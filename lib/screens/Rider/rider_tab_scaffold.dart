@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tarumt_carpool/screens/rider_home_content.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_home_content.dart';
 
 class RiderTabScaffold extends StatefulWidget {
   const RiderTabScaffold({super.key});

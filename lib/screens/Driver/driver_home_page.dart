@@ -3,8 +3,8 @@ import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
-import 'package:tarumt_carpool/screens/edit_post_screen.dart';
-import 'package:tarumt_carpool/screens/create_post_rides_screen.dart';
+import 'package:tarumt_carpool/screens/Driver/edit_post_screen.dart';
+import 'package:tarumt_carpool/screens/Driver/create_post_rides_screen.dart';
 
 class DriverHomePage extends StatefulWidget {
   const DriverHomePage({super.key});

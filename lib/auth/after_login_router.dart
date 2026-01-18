@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:tarumt_carpool/screens/rider_tab_scaffold.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
 
 import '../repositories/user_repository.dart';
 import '../models/app_user.dart';
 
-import '../screens/admin_home_page.dart';
-import '../screens/driver_home_page.dart';
+import '../screens/Admin/admin_home_page.dart';
+import '../screens/Driver/driver_home_page.dart';
 import 'login_screen.dart';
 import 'admin_guard.dart';
 

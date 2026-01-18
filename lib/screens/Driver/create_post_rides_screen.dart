@@ -3,7 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
-import 'package:tarumt_carpool/screens/location_select_screen.dart';
+import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
