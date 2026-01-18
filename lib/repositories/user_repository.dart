@@ -20,46 +20,49 @@ class UserRepository {
     }
   }
 
-  // ✅ Create user profile under users/{uid}
   Future<void> createUser(AppUser user) async {
     final uid = user.uid;
-    final staffId = user.staffId.trim();
-    final emailLower = user.email.trim().toLowerCase();
-    final phone = user.phone.trim();
 
-    // 1) Prevent overwriting same UID
+    // ✅ Prevent overwriting same UID (safety check)
     final existing = await _users.doc(uid).get();
     if (existing.exists) {
       throw Exception('User already exists.');
     }
 
-    // 2) Uniqueness checks inside the SAME users collection
-    // (Not 100% race-safe, but OK for FYP / small traffic)
+    // ✅ Just write data (duplicates already checked earlier)
+    await _users.doc(uid).set({
+      ...user.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+  Future<List<String>> checkDuplicates({
+    required String staffId,
+    required String phone,
+    required String emailLower,
+  }) async {
+    final errors = <String>[];
+
     final staffDup =
     await _users.where('staffId', isEqualTo: staffId).limit(1).get();
     if (staffDup.docs.isNotEmpty) {
-      throw Exception('Student/Staff ID already registered.');
+      errors.add('Student/Staff ID already registered.');
     }
 
     final phoneDup =
     await _users.where('phone', isEqualTo: phone).limit(1).get();
     if (phoneDup.docs.isNotEmpty) {
-      throw Exception('Phone number already registered.');
+      errors.add('Phone number already registered.');
     }
 
-    await ensureEmailNotUsed(emailLower);
+    final emailDup =
+    await _users.where('email', isEqualTo: emailLower).limit(1).get();
+    if (emailDup.docs.isNotEmpty) {
+      errors.add('Email already registered.');
+    }
 
-    // save yo the firestore at users/{uid}
-    await _users.doc(uid).set({
-      ...user.toMap(),
-      'email': emailLower,
-      'staffId': staffId,
-      'phone': phone,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    return errors;
   }
-
   // ✅ Get currently logged-in user's profile (users/{uid})
   Future<AppUser?> getCurrentUser() async {
     final uid = _auth.currentUser?.uid;

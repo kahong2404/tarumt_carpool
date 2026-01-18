@@ -1,15 +1,16 @@
 import 'app_strings.dart';
 
 class Validators {
+  // ----------------------
+  // Single-field checks
+  // ----------------------
   static bool isTarumtEmail(String email) {
     final e = email.trim().toLowerCase();
     return e.endsWith('@student.tarc.edu.my') || e.endsWith('@tarc.edu.my');
   }
 
-  static bool isValidStaffId(String id) {
-    // ✅ exactly 7 digits
-    return RegExp(r'^\d{7}$').hasMatch(id.trim());
-  }
+  static bool isValidStaffId(String id) =>
+      RegExp(r'^\d{7}$').hasMatch(id.trim());
 
   static bool isValidName(String name) {
     final n = name.trim();
@@ -37,19 +38,23 @@ class Validators {
     return hasUpper && hasLower && hasNumber && hasSymbol;
   }
 
-  // prevent duplicate messages
+  // ----------------------
+  // Shared "add once"
+  // ----------------------
   static void _add(List<String> list, String msg) {
     if (!list.contains(msg)) list.add(msg);
   }
 
-  // ✅ show ALL errors (Register)
-  static List<String> validateRegisterField({
+  // ----------------------
+  // Register (service)
+  // - No confirm password here
+  // ----------------------
+  static List<String> validateRegisterCore({
     required String email,
     required String staffId,
     required String name,
     required String phone,
     required String password,
-    required String confirmPassword,
   }) {
     final errors = <String>[];
 
@@ -88,7 +93,29 @@ class Validators {
       _add(errors, AppStrings.weakPassword);
     }
 
-    // Confirm password
+    return errors;
+  }
+
+  // ----------------------
+  // Register (UI)
+  // - Adds confirm password check on top of core
+  // ----------------------
+  static List<String> validateRegisterUI({
+    required String email,
+    required String staffId,
+    required String name,
+    required String phone,
+    required String password,
+    required String confirmPassword,
+  }) {
+    final errors = validateRegisterCore(
+      email: email,
+      staffId: staffId,
+      name: name,
+      phone: phone,
+      password: password,
+    );
+
     if (confirmPassword.isEmpty) {
       _add(errors, AppStrings.enterConfirmPassword);
     } else if (password.isNotEmpty && password != confirmPassword) {
@@ -98,7 +125,9 @@ class Validators {
     return errors;
   }
 
-  // ✅ show ALL errors (Login)
+  // ----------------------
+  // Login (UI)
+  // ----------------------
   static List<String> validateLoginAll({
     required String email,
     required String password,
@@ -118,7 +147,9 @@ class Validators {
     return errors;
   }
 
-  // ✅ show ALL errors (Forgot password)
+  // ----------------------
+  // Forgot password (UI)
+  // ----------------------
   static List<String> validateForgotPasswordAll({
     required String email,
   }) {

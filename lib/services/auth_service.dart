@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/app_user.dart';
 import '../repositories/user_repository.dart';
 import '../utils/validators.dart';
-import '../utils/app_strings.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -11,55 +10,66 @@ class AuthService {
   String? get currentUid => _auth.currentUser?.uid;
 
   Future<void> register({
-    required String role, // rider | driver
+    required String role,
     required String staffId,
     required String name,
     required String phone,
     required String email,
     required String password,
   }) async {
-    // Double check the field again
-    if (!Validators.isTarumtEmail(email)) {
-      throw Exception(AppStrings.invalidTarumtEmail);
-    }
-    if (!Validators.isValidStaffId(staffId)) {
-      throw Exception(AppStrings.invalidStaffId);
-    }
-    if (!Validators.isValidName(name)) {
-      throw Exception(AppStrings.invalidName);
-    }
-    if (!Validators.isValidMalaysiaPhone(phone)) {
-      throw Exception(AppStrings.invalidPhone);
-    }
-    if (!Validators.isStrongPassword(password)) {
-      throw Exception(AppStrings.weakPassword);
-    }
-
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email.trim().toLowerCase(),
+    // 1) core validation
+    final errs = Validators.validateRegisterCore(
+      email: email,
+      staffId: staffId,
+      name: name,
+      phone: phone,
       password: password,
-    ); // Creates account in Firebase Auth and return User credential
+    );
+    if (errs.isNotEmpty) throw Exception(errs.join('\n')); // optional: show all core errors too
 
-    final uid = cred.user!.uid; // get the uid by the User credential
+    // 2) normalize inputs ONCE
+    final emailLower = email.trim().toLowerCase();
+    final staffIdTrim = staffId.trim();
+    final phoneTrim = phone.trim();
 
-    final appUser = AppUser( //creates one AppUser object that represents the user’s profile data
+    // ✅ 3) PRECHECK duplicates in Firestore BEFORE FirebaseAuth
+    final dupErrors = await _users.checkDuplicates(
+      staffId: staffIdTrim,
+      phone: phone,
+      emailLower: emailLower,
+    );
+
+    if (dupErrors.isNotEmpty) {
+      throw Exception(dupErrors.join('\n')); // ✅ multiple messages
+    }
+
+    // 4) Only now create Firebase Auth user
+    final cred = await _auth.createUserWithEmailAndPassword(
+      email: emailLower,
+      password: password,
+    );
+
+    final uid = cred.user!.uid;
+
+    final appUser = AppUser(
       uid: uid,
-      staffId: staffId.trim(),
+      staffId: staffIdTrim,
       name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone.trim(),
+      email: emailLower,
+      phone: phone,
       role: role,
       driverStatus: role == 'driver' ? 'pending' : 'not_driver',
       walletBalance: 0,
     );
 
     try {
-      await _users.createUser(appUser); //to save user profile in the firestore
+      await _users.createUser(appUser); // should pass now
     } catch (e) {
-      await cred.user?.delete();  // deletes the Firebase Auth account that was just created
-      rethrow; //same error back to AuthService.register() because it only can check the email and password need to create account to check the firestore
+      await cred.user?.delete();
+      rethrow;
     }
   }
+
 
   Future<void> login({
     required String email,
