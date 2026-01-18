@@ -35,7 +35,6 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const _DriverBottomNav(currentIndex: 0),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _onRefresh,
@@ -531,33 +530,6 @@ class _EmptyRidePostState extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DriverBottomNav extends StatelessWidget {
-  final int currentIndex;
-
-  const _DriverBottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.black,
-      unselectedItemColor: Colors.black45,
-      showSelectedLabels: false,
-      showUnselectedLabels: false,
-      onTap: (index) {
-        // TODO: handle navigation later
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), label: "Posts"),
-        BottomNavigationBarItem(icon: Icon(Icons.notifications_none_outlined), label: "Notifications"),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile"),
-      ],
     );
   }
 }

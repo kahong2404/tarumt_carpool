@@ -72,7 +72,6 @@ class RiderHomeContent extends StatelessWidget {
                       '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
                   final rideTime =
                       '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
 // 🔹 Save to Firestore
                   final repo = RiderRequestRepository();
 

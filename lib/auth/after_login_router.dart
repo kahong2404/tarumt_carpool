@@ -5,7 +5,7 @@ import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
 
 import 'package:tarumt_carpool/screens/Admin/admin_tab_scaffold.dart';
-import 'package:tarumt_carpool/screens/Driver/driver_home_page.dart';
+import 'package:tarumt_carpool/screens/Driver/drider_tab_scaffold.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
 
 import 'login_screen.dart';
@@ -41,7 +41,7 @@ class AfterLoginRouter extends StatelessWidget {
       }
 
       if (me.role == 'driver') {
-        return const DriverHomePage();
+        return const DriverTabScaffold();
       }
 
       return const RiderTabScaffold();
