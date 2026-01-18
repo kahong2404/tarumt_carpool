@@ -163,4 +163,22 @@ class Validators {
 
     return errors;
   }
+
+  // Edit Profile
+  static List<String> validateEditPhone({
+    required String phone,
+  }) {
+    final errors = <String>[];
+
+    if (phone.trim().isEmpty) {
+      _add(errors, AppStrings.enterPhone);
+      return errors;
+    }
+
+    if (!isValidMalaysiaPhone(phone)) {
+      _add(errors, AppStrings.invalidPhone);
+    }
+
+    return errors;
+  }
 }

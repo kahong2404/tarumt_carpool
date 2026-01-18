@@ -7,7 +7,7 @@ class AppUser {
   final String role; // rider | driver | admin
   final String driverStatus; // not_driver | pending | approved | rejected
   final int walletBalance;
-
+  final String? photoUrl;
   //Constructor
   AppUser({
     required this.uid,
@@ -18,6 +18,7 @@ class AppUser {
     required this.role,
     required this.driverStatus,
     required this.walletBalance,
+    this.photoUrl,
   });
 
   //converts a Dart object into a Map (to store in Firestore)
@@ -31,6 +32,7 @@ class AppUser {
       'role': role,
       'driverStatus': driverStatus,
       'walletBalance': walletBalance,
+      'photoUrl': photoUrl,
     };
   }
 
@@ -45,6 +47,7 @@ class AppUser {
       role: map['role'] ?? 'rider',
       driverStatus: map['driverStatus'] ?? 'not_driver',
       walletBalance: (map['walletBalance'] ?? 0) as int,
+      photoUrl: map['photoUrl'],
     );
   }
 }

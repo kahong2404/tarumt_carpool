@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/models/app_user.dart';
+
+import 'package:tarumt_carpool/screens/Admin/admin_tab_scaffold.dart';
+import 'package:tarumt_carpool/screens/Driver/driver_home_page.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
 
-import '../repositories/user_repository.dart';
-import '../models/app_user.dart';
-
-import '../screens/Admin/admin_home_page.dart';
-import '../screens/Driver/driver_home_page.dart';
 import 'login_screen.dart';
 import 'admin_guard.dart';
 
@@ -23,14 +23,12 @@ class AfterLoginRouter extends StatelessWidget {
   final _users = UserRepository();
 
   Future<Widget> _route() async {
-    final user = _auth.currentUser; //If nobody is logged in → show login screen
-    if (user == null) return const LoginScreen(); //If nobody is logged in → show login screen.
+    final user = _auth.currentUser;
+    if (user == null) return const LoginScreen();
 
     try {
-      // Reads Firestore profile for the current user, returns AppUser or null.
       final AppUser? me = await _users.getCurrentUser();
 
-      // Profile missing in Firestore
       if (me == null) {
         return const _FallbackScreen(
           title: kProfileMissingTitle,
@@ -38,14 +36,14 @@ class AfterLoginRouter extends StatelessWidget {
         );
       }
 
-      // ✅ Role-based routing (ALL roles inside users collection)
       if (me.role == 'admin') {
-        return AdminGuard(child: const AdminHomePage());
+        return AdminGuard(child: const AdminTabScaffold());
       }
 
-      if (me.role == 'driver') return const DriverHomePage();
+      if (me.role == 'driver') {
+        return const DriverHomePage();
+      }
 
-      // default rider
       return const RiderTabScaffold();
     } catch (_) {
       return const _FallbackScreen(
@@ -54,6 +52,7 @@ class AfterLoginRouter extends StatelessWidget {
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Widget>(
@@ -65,7 +64,6 @@ class AfterLoginRouter extends StatelessWidget {
           );
         }
 
-        // 👈 SAME fallback again (safety)
         if (snap.hasError) {
           return const _FallbackScreen(
             title: kProfileMissingTitle,
@@ -121,9 +119,7 @@ class _FallbackScreen extends StatelessWidget {
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (_) => false,
                     );
                   }
