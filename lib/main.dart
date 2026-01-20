@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-//  initialize Firebase in a Flutter application
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-import 'auth/register_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-// Future means this function finish later no immediately
-// // async means this function will do something that takes time, and we need to wait for it.
-// //This app starts here, it will run some asynchronous code (like Firebase), we will wait until it finishes, and then continue
+import 'firebase_options.dart';
+
+// screens
+import 'auth/login_screen.dart';
+import 'auth/after_login_router.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -20,12 +21,59 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: RegisterScreen(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snap) {
+          // loading
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          // ✅ already logged in -> go to router (rider/driver/admin)
+          if (snap.data != null) {
+            return AfterLoginRouter();
+          }
+
+          // ✅ not logged in -> go login
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
+
+// import 'package:flutter/material.dart';
+// //  initialize Firebase in a Flutter application
+// import 'package:firebase_core/firebase_core.dart';
+// import 'firebase_options.dart';
+// import 'auth/register_screen.dart';
+//
+// // Future means this function finish later no immediately
+// // // async means this function will do something that takes time, and we need to wait for it.
+// // //This app starts here, it will run some asynchronous code (like Firebase), we will wait until it finishes, and then continue
+// Future<void> main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp(
+//     options: DefaultFirebaseOptions.currentPlatform,
+//   );
+//   runApp(const MyApp());
+// }
+//
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return const MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       home: RegisterScreen(),
+//     );
+//   }
+// }
 
 
 // import 'package:flutter/material.dart';

@@ -207,7 +207,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
           final data = snap.data!;
           final name = (data['name'] ?? '') as String;
-          final role = (data['role'] ?? '') as String;
+          final role = (data['activeRole'] ?? '') as String;
           final email = (data['email'] ?? '') as String;
           final staffId = (data['staffId'] ?? '') as String;
           final phone = (data['phone'] ?? '') as String;

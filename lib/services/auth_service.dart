@@ -10,14 +10,13 @@ class AuthService {
   String? get currentUid => _auth.currentUser?.uid;
 
   Future<void> register({
-    required String role,
+    required String role, // 'rider' or 'driver'
     required String staffId,
     required String name,
     required String phone,
     required String email,
     required String password,
   }) async {
-    // 1) core validation
     final errs = Validators.validateRegisterCore(
       email: email,
       staffId: staffId,
@@ -25,25 +24,20 @@ class AuthService {
       phone: phone,
       password: password,
     );
-    if (errs.isNotEmpty) throw Exception(errs.join('\n')); // optional: show all core errors too
+    if (errs.isNotEmpty) throw Exception(errs.join('\n'));
 
-    // 2) normalize inputs ONCE
     final emailLower = email.trim().toLowerCase();
     final staffIdTrim = staffId.trim();
     final phoneTrim = phone.trim();
+    final initialRole = role.trim(); // rider/driver
 
-    // ✅ 3) PRECHECK duplicates in Firestore BEFORE FirebaseAuth
     final dupErrors = await _users.checkDuplicates(
       staffId: staffIdTrim,
-      phone: phone,
+      phone: phoneTrim,
       emailLower: emailLower,
     );
+    if (dupErrors.isNotEmpty) throw Exception(dupErrors.join('\n'));
 
-    if (dupErrors.isNotEmpty) {
-      throw Exception(dupErrors.join('\n')); // ✅ multiple messages
-    }
-
-    // 4) Only now create Firebase Auth user
     final cred = await _auth.createUserWithEmailAndPassword(
       email: emailLower,
       password: password,
@@ -56,20 +50,21 @@ class AuthService {
       staffId: staffIdTrim,
       name: name.trim(),
       email: emailLower,
-      phone: phone,
-      role: role,
-      driverStatus: role == 'driver' ? 'pending' : 'not_driver',
+      phone: phoneTrim,
+      roles: [initialRole],
+      activeRole: initialRole,
+      driverStatus: initialRole == 'driver' ? 'pending' : 'not_driver',
       walletBalance: 0,
+      photoUrl: null,
     );
 
     try {
-      await _users.createUser(appUser); // should pass now
+      await _users.createUser(appUser);
     } catch (e) {
       await cred.user?.delete();
       rethrow;
     }
   }
-
 
   Future<void> login({
     required String email,
@@ -82,9 +77,7 @@ class AuthService {
   }
 
   Future<void> resetPassword(String email) async {
-    await _auth.sendPasswordResetEmail(
-      email: email.trim().toLowerCase(),
-    );
+    await _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
   }
 
   Future<void> logout() async {

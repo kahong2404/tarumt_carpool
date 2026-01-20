@@ -6,11 +6,7 @@ class UserRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // =========================
-  // Collection
-  // =========================
-  CollectionReference<Map<String, dynamic>> get _users =>
-      _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
 
   // =========================
   // REGISTER: DUPLICATE CHECK
@@ -26,34 +22,16 @@ class UserRepository {
     final phoneTrim = phone.trim();
     final emailTrim = emailLower.trim();
 
-    // staffId duplicate
-    final staffDup = await _users
-        .where('staffId', isEqualTo: staffIdTrim)
-        .limit(1)
-        .get();
-    if (staffDup.docs.isNotEmpty) {
-      errors.add('Student/Staff ID already registered.');
-    }
+    final staffDup = await _users.where('staffId', isEqualTo: staffIdTrim).limit(1).get();
+    if (staffDup.docs.isNotEmpty) errors.add('Student/Staff ID already registered.');
 
-    // phone duplicate
     if (phoneTrim.isNotEmpty) {
-      final phoneDup = await _users
-          .where('phone', isEqualTo: phoneTrim)
-          .limit(1)
-          .get();
-      if (phoneDup.docs.isNotEmpty) {
-        errors.add('Phone number already registered.');
-      }
+      final phoneDup = await _users.where('phone', isEqualTo: phoneTrim).limit(1).get();
+      if (phoneDup.docs.isNotEmpty) errors.add('Phone number already registered.');
     }
 
-    // email duplicate
-    final emailDup = await _users
-        .where('email', isEqualTo: emailTrim)
-        .limit(1)
-        .get();
-    if (emailDup.docs.isNotEmpty) {
-      errors.add('Email already registered.');
-    }
+    final emailDup = await _users.where('email', isEqualTo: emailTrim).limit(1).get();
+    if (emailDup.docs.isNotEmpty) errors.add('Email already registered.');
 
     return errors;
   }
@@ -66,13 +44,10 @@ class UserRepository {
 
     final ref = _users.doc(uid);
     final snap = await ref.get();
-    if (snap.exists) {
-      throw Exception('User already exists.');
-    }
+    if (snap.exists) throw Exception('User already exists.');
 
     await ref.set({
       ...user.toMap(),
-      'phone': user.phone.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -91,10 +66,8 @@ class UserRepository {
     return AppUser.fromMap(doc.data()!);
   }
 
-  Future<AppUser> getUserByUid(String uid) async {
-    final doc = await _users.doc(uid).get();
-    if (!doc.exists) throw Exception('User record not found.');
-    return AppUser.fromMap(doc.data()!);
+  Stream<Map<String, dynamic>?> streamUserDoc(String uid) {
+    return _users.doc(uid).snapshots().map((doc) => doc.data());
   }
 
   // =========================
@@ -105,16 +78,9 @@ class UserRepository {
     required String newPhone,
   }) async {
     final phoneTrim = newPhone.trim();
-    if (phoneTrim.isEmpty) {
-      throw Exception('Please enter your phone number.');
-    }
+    if (phoneTrim.isEmpty) throw Exception('Please enter your phone number.');
 
-    // 🔴 CHECK DUPLICATE (users collection)
-    final q = await _users
-        .where('phone', isEqualTo: phoneTrim)
-        .limit(1)
-        .get();
-
+    final q = await _users.where('phone', isEqualTo: phoneTrim).limit(1).get();
     if (q.docs.isNotEmpty && q.docs.first.id != uid) {
       throw Exception('Phone number already registered.');
     }
@@ -125,9 +91,6 @@ class UserRepository {
     });
   }
 
-  // =========================
-  // PROFILE: PHOTO
-  // =========================
   Future<void> updatePhotoUrl({
     required String uid,
     required String photoUrl,
@@ -139,9 +102,36 @@ class UserRepository {
   }
 
   // =========================
-  // STREAM
+  // ✅ ROLE METHODS
   // =========================
-  Stream<Map<String, dynamic>?> streamUserDoc(String uid) {
-    return _users.doc(uid).snapshots().map((doc) => doc.data());
+
+  Future<void> setActiveRole({
+    required String uid,
+    required String activeRole, // 'rider' | 'driver' | 'admin'
+  }) async {
+    await _users.doc(uid).update({
+      'activeRole': activeRole,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> addRoleIfMissing({
+    required String uid,
+    required String role, // 'rider' | 'driver'
+  }) async {
+    await _users.doc(uid).update({
+      'roles': FieldValue.arrayUnion([role]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateUser({
+    required String uid,
+    required Map<String, dynamic> data,
+  }) async {
+    await _users.doc(uid).update({
+      ...data,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

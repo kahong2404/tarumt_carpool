@@ -28,7 +28,6 @@ class AfterLoginRouter extends StatelessWidget {
 
     try {
       final AppUser? me = await _users.getCurrentUser();
-
       if (me == null) {
         return const _FallbackScreen(
           title: kProfileMissingTitle,
@@ -36,14 +35,15 @@ class AfterLoginRouter extends StatelessWidget {
         );
       }
 
-      if (me.role == 'admin') {
+      // ✅ Use activeRole ONLY
+      final ar = me.activeRole;
+
+      if (ar == 'admin') {
         return AdminGuard(child: const AdminTabScaffold());
       }
-
-      if (me.role == 'driver') {
+      if (ar == 'driver') {
         return const DriverTabScaffold();
       }
-
       return const RiderTabScaffold();
     } catch (_) {
       return const _FallbackScreen(
@@ -61,13 +61,6 @@ class AfterLoginRouter extends StatelessWidget {
         if (snap.connectionState != ConnectionState.done) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snap.hasError) {
-          return const _FallbackScreen(
-            title: kProfileMissingTitle,
-            message: kProfileMissingMessage,
           );
         }
 

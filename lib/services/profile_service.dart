@@ -21,10 +21,8 @@ class ProfileService {
 
   Future<void> uploadProfileImage(File file) async {
     final uid = _uid;
-
     final ref = _storage.ref('profile_images/$uid.jpg');
     await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
-
     final url = await ref.getDownloadURL();
     await _repo.updatePhotoUrl(uid: uid, photoUrl: url);
   }
@@ -32,36 +30,50 @@ class ProfileService {
   Future<void> updatePhoneRaw(String phoneInput) async {
     final phone = phoneInput.trim();
     if (phone.isEmpty) throw Exception('Please enter your phone number.');
-
     if (!Validators.isValidMalaysiaPhone(phone)) {
       throw Exception('Invalid Malaysia phone number.');
     }
-
     await _repo.updatePhone(uid: _uid, newPhone: phone);
+  }
+
+  // ✅ Switch mode
+  Future<void> switchToDriver() async {
+    await _repo.setActiveRole(uid: _uid, activeRole: 'driver');
+  }
+
+  Future<void> switchToRider() async {
+    await _repo.setActiveRole(uid: _uid, activeRole: 'rider');
+  }
+
+  // ✅ Become (add role + switch)
+  Future<void> becomeDriver() async {
+    final uid = _uid;
+    await _repo.addRoleIfMissing(uid: uid, role: 'driver');
+    await _repo.updateUser(uid: uid, data: {'driverStatus': 'pending'});
+    await _repo.setActiveRole(uid: uid, activeRole: 'driver');
+  }
+
+  Future<void> becomeRider() async {
+    final uid = _uid;
+    await _repo.addRoleIfMissing(uid: uid, role: 'rider');
+    await _repo.setActiveRole(uid: uid, activeRole: 'rider');
   }
 
   Future<void> logout() async {
     await _auth.signOut();
   }
 
-  /// Delete account:
-  /// 1) delete Firestore user doc
-  /// 2) delete profile image in Storage (ignore if missing)
-  /// 3) delete FirebaseAuth user (may require recent login)
   Future<void> deleteAccount() async {
     final uid = _uid;
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in.');
 
-    // delete Firestore profile
     await _db.collection('users').doc(uid).delete();
 
-    // delete storage image
     try {
       await _storage.ref('profile_images/$uid.jpg').delete();
     } catch (_) {}
 
-    // delete auth user
     await user.delete();
   }
 }

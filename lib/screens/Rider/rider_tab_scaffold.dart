@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_home_content.dart';
-
+import '../profile/dashboard/rider_profile_dashboard.dart';
 class RiderTabScaffold extends StatefulWidget {
   const RiderTabScaffold({super.key});
 
@@ -37,11 +37,11 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
         child: PageView(
           controller: _pageCtrl,
           onPageChanged: (i) => setState(() => _index = i),
-          children: const [
-            RiderHomeContent(), // ✅ now this is a full page
-            _PlaceholderTab(title: 'My Rides'),
-            _PlaceholderTab(title: 'Notifications'),
-            _PlaceholderTab(title: 'Profile'),
+          children: [
+            const RiderHomeContent(),                // Tab 0
+            const _PlaceholderTab(title: 'My Rides'),// Tab 1
+            const _PlaceholderTab(title: 'Notifications'), // Tab 2
+            RiderProfileDashboard(),                 // ✅ Tab 3 (Profile)
           ],
         ),
       ),
