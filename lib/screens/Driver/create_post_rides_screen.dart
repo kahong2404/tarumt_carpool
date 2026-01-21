@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:tarumt_carpool/models/driver_offer.dart';
-import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
+import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
+import 'package:tarumt_carpool/utils/distance.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
@@ -25,11 +27,22 @@ class _PostRidesState extends State<PostRides> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
-  // ✅ Save coordinates too (better than text only)
   LatLng? _pickupLatLng;
   LatLng? _destLatLng;
 
+  // ✅ computed values
+  double? _distanceKm;
+  double? _computedFare;
+
   bool _loading = false;
+
+  // =========================
+  // Pricing config (edit anytime)
+  // =========================
+  static const double _baseFare = 2.00;  // RM
+  static const double _ratePerKm = 0.80; // RM per km
+  static const double _minFare = 3.00;   // RM minimum
+  static const double _maxFare = 50.00;  // optional cap
 
   @override
   void dispose() {
@@ -57,8 +70,34 @@ class _PostRidesState extends State<PostRides> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  double _calcFare(double km) {
+    final raw = _baseFare + (_ratePerKm * km);
+    final withMin = raw < _minFare ? _minFare : raw;
+    final capped = withMin > _maxFare ? _maxFare : withMin;
+    return double.parse(capped.toStringAsFixed(2));
+  }
+
+  void _recalcFareIfPossible() {
+    if (_pickupLatLng == null || _destLatLng == null) return;
+
+    final km = distanceKm(
+      lat1: _pickupLatLng!.latitude,
+      lon1: _pickupLatLng!.longitude,
+      lat2: _destLatLng!.latitude,
+      lon2: _destLatLng!.longitude,
+    );
+
+    final fare = _calcFare(km);
+
+    setState(() {
+      _distanceKm = km;
+      _computedFare = fare;
+      _fareCtrl.text = 'RM ${fare.toStringAsFixed(2)}';
+    });
+  }
+
   // =========================
-  // ✅ Select Start (Pickup)
+  // Select Start (Pickup)
   // =========================
   Future<void> _selectStartPoint() async {
     final result = await Navigator.push<Map<String, dynamic>>(
@@ -79,14 +118,19 @@ class _PostRidesState extends State<PostRides> {
     if (result == null) return;
 
     setState(() {
-      _pickupLatLng = LatLng(result["lat"], result["lng"]);
+      _pickupLatLng = LatLng(
+        (result["lat"] as num).toDouble(),
+        (result["lng"] as num).toDouble(),
+      );
       final address = (result["address"] ?? "").toString().trim();
       _pickupCtrl.text = address.isEmpty ? "Selected location" : address;
     });
+
+    _recalcFareIfPossible();
   }
 
   // =========================
-  // ✅ Select Destination
+  // Select Destination
   // =========================
   Future<void> _selectDestination() async {
     final result = await Navigator.push<Map<String, dynamic>>(
@@ -94,7 +138,7 @@ class _PostRidesState extends State<PostRides> {
       MaterialPageRoute(
         builder: (_) => LocationSelectScreen(
           mode: LocationSelectMode.dropoff,
-          initialTarget: const LatLng(3.2149, 101.7291),
+          initialTarget: _pickupLatLng ?? const LatLng(3.2149, 101.7291),
           autoMoveToMyLocation: false,
           customMarkerTitle: "Destination",
           customButtonText: "Set Destination",
@@ -106,10 +150,15 @@ class _PostRidesState extends State<PostRides> {
     if (result == null) return;
 
     setState(() {
-      _destLatLng = LatLng(result["lat"], result["lng"]);
+      _destLatLng = LatLng(
+        (result["lat"] as num).toDouble(),
+        (result["lng"] as num).toDouble(),
+      );
       final address = (result["address"] ?? "").toString().trim();
       _destinationCtrl.text = address.isEmpty ? "Selected location" : address;
     });
+
+    _recalcFareIfPossible();
   }
 
   Future<void> _postRide() async {
@@ -130,11 +179,10 @@ class _PostRidesState extends State<PostRides> {
       return _snack("Seats must be a number > 0.");
     }
 
-    final fareText = _fareCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '');
-    final fare = double.tryParse(fareText);
-    if (fare == null || fare < 0) {
-      return _snack("Fare must be a valid number (e.g. 5.00).");
+    if (_computedFare == null) {
+      return _snack("Please select starting point and destination to calculate fare.");
     }
+    final fare = _computedFare!;
 
     final dt = DateTime(
       _selectedDate!.year,
@@ -151,15 +199,15 @@ class _PostRidesState extends State<PostRides> {
     setState(() => _loading = true);
 
     try {
-      // ✅ If your DriverOffer DOES NOT have lat/lng fields, keep this as-is.
-      // If you WANT to store coordinates, add fields in DriverOffer and pass them here.
       final offer = DriverOffer(
         driverId: '', // repo will replace with current uid
         pickup: pickup,
         destination: dest,
+        pickupGeo: GeoPoint(_pickupLatLng!.latitude, _pickupLatLng!.longitude),
+        destinationGeo: GeoPoint(_destLatLng!.latitude, _destLatLng!.longitude),
         rideDateTime: dt,
         seatsAvailable: seats,
-        fare: fare,
+        fare: fare, // ✅ computed
       );
 
       final id = await _repo.create(offer);
@@ -199,7 +247,7 @@ class _PostRidesState extends State<PostRides> {
             ),
             const SizedBox(height: 18),
 
-            // ✅ Start Point (driver)
+            // Start Point
             TextField(
               controller: _pickupCtrl,
               readOnly: true,
@@ -212,7 +260,7 @@ class _PostRidesState extends State<PostRides> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ Destination
+            // Destination
             TextField(
               controller: _destinationCtrl,
               readOnly: true,
@@ -225,6 +273,7 @@ class _PostRidesState extends State<PostRides> {
             ),
             const SizedBox(height: 12),
 
+            // Date + Time
             Row(
               children: [
                 Expanded(
@@ -238,8 +287,7 @@ class _PostRidesState extends State<PostRides> {
                       final picked = await showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                        lastDate:
-                        DateTime.now().add(const Duration(days: 365)),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
                         initialDate: DateTime.now(),
                       );
                       if (picked != null) {
@@ -276,6 +324,7 @@ class _PostRidesState extends State<PostRides> {
             ),
             const SizedBox(height: 12),
 
+            // Seats
             TextField(
               controller: _seatsCtrl,
               keyboardType: TextInputType.number,
@@ -283,18 +332,28 @@ class _PostRidesState extends State<PostRides> {
             ),
             const SizedBox(height: 12),
 
+            // Fare (Auto)
             TextField(
               controller: _fareCtrl,
-              keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+              readOnly: true,
               decoration: _dec(
-                'Ride Fare',
+                'Ride Fare (Auto)',
                 Icons.attach_money_outlined,
-                hint: 'RM 0.00',
+                hint: 'Select pickup & destination',
               ),
             ),
+
+            if (_distanceKm != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Distance: ${_distanceKm!.toStringAsFixed(1)} km',
+                style: const TextStyle(color: Colors.black54),
+              ),
+            ],
+
             const SizedBox(height: 14),
 
+            // Tip box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -310,7 +369,7 @@ class _PostRidesState extends State<PostRides> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Tip: Set a fair price and be punctual to build a good reputation with passengers!',
+                      'Tip: Fare is calculated automatically based on distance. Please be punctual to build a good reputation with passengers!',
                       style: TextStyle(fontSize: 12.5),
                     ),
                   ),

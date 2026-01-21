@@ -1,53 +1,107 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RiderRequest {
-  final String requestID; // PK
-  final String origin; // address text
-  final String destination; // address text
+  // ------------------------
+  // Identity
+  // ------------------------
+  final String requestID; // Firestore doc id
+  final String riderId;   // users/{uid}
+
+  // ------------------------
+  // Display text (UI)
+  // ------------------------
+  final String originAddress;
+  final String destinationAddress;
+
+  // ------------------------
+  // ✅ GeoPoints (for maps & matching)
+  // ------------------------
+  final GeoPoint originGeo;
+  final GeoPoint destinationGeo;
+
+  // ------------------------
+  // Ride details
+  // ------------------------
   final String rideDate; // "YYYY-MM-DD"
   final String rideTime; // "HH:mm"
   final int seatRequested;
-  final String requestStatus; // pending/accepted/rejected/cancelled etc
-  final String riderId; // FK -> users/{uid}
+  final String requestStatus; // pending / accepted / cancelled / completed
+
   final Timestamp? createdAt;
 
-  RiderRequest({
+  // ------------------------
+  // Constructor
+  // ------------------------
+  const RiderRequest({
     required this.requestID,
-    required this.origin,
-    required this.destination,
+    required this.riderId,
+    required this.originAddress,
+    required this.destinationAddress,
+    required this.originGeo,
+    required this.destinationGeo,
     required this.rideDate,
     required this.rideTime,
     required this.seatRequested,
     required this.requestStatus,
-    required this.riderId,
     this.createdAt,
   });
 
+  // ------------------------
+  // Firestore (CREATE)
+  // ------------------------
   Map<String, dynamic> toMapForCreate() {
     return {
       'requestID': requestID,
-      'origin': origin,
-      'destination': destination,
+      'riderId': riderId,
+
+      // display
+      'originAddress': originAddress.trim(),
+      'destinationAddress': destinationAddress.trim(),
+
+      // ✅ geo
+      'originGeo': originGeo,
+      'destinationGeo': destinationGeo,
+
       'rideDate': rideDate,
       'rideTime': rideTime,
       'seatRequested': seatRequested,
       'requestStatus': requestStatus,
-      'riderId': riderId,
       'createdAt': FieldValue.serverTimestamp(),
     };
   }
 
-  factory RiderRequest.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+  // ------------------------
+  // Firestore → Model
+  // ------------------------
+  factory RiderRequest.fromDoc(
+      DocumentSnapshot<Map<String, dynamic>> doc,
+      ) {
+    final data = doc.data();
+    if (data == null) {
+      throw Exception('RiderRequest has no data: ${doc.id}');
+    }
+
+    final originGeo = data['originGeo'];
+    final destinationGeo = data['destinationGeo'];
+
+    if (originGeo is! GeoPoint || destinationGeo is! GeoPoint) {
+      throw Exception('RiderRequest missing GeoPoint fields: ${doc.id}');
+    }
+
     return RiderRequest(
       requestID: (data['requestID'] ?? doc.id).toString(),
-      origin: (data['origin'] ?? '').toString(),
-      destination: (data['destination'] ?? '').toString(),
+      riderId: (data['riderId'] ?? '').toString(),
+
+      originAddress: (data['originAddress'] ?? '').toString(),
+      destinationAddress: (data['destinationAddress'] ?? '').toString(),
+
+      originGeo: originGeo,
+      destinationGeo: destinationGeo,
+
       rideDate: (data['rideDate'] ?? '').toString(),
       rideTime: (data['rideTime'] ?? '').toString(),
       seatRequested: (data['seatRequested'] ?? 1) as int,
       requestStatus: (data['requestStatus'] ?? 'pending').toString(),
-      riderId: (data['riderId'] ?? '').toString(),
       createdAt: data['createdAt'] as Timestamp?,
     );
   }

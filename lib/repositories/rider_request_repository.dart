@@ -8,32 +8,38 @@ class RiderRequestRepository {
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('riderRequests');
 
-  /// Create RiderRequest based on your ERD.
   Future<String> createRiderRequest({
-    required String origin,
-    required String destination,
-    required String rideDate, // "YYYY-MM-DD"
-    required String rideTime, // "HH:mm"
+    required String originAddress,
+    required String destinationAddress,
+    required GeoPoint originGeo,
+    required GeoPoint destinationGeo,
+    required String rideDate,
+    required String rideTime,
     required int seatRequested,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Not logged in.');
+    if (user == null) throw Exception('Not logged in');
 
-    final doc = _requests.doc(); // auto requestID
-    final requestID = doc.id;
+    final doc = _requests.doc();
+    final requestId = doc.id;
 
     await doc.set({
-      'requestID': requestID,
-      'origin': origin.trim(),
-      'destination': destination.trim(),
-      'rideDate': rideDate.trim(),
-      'rideTime': rideTime.trim(),
+      'requestId': requestId,
+      'originAddress': originAddress.trim(),
+      'destinationAddress': destinationAddress.trim(),
+
+      // ✅ GeoPoints
+      'originGeo': originGeo,
+      'destinationGeo': destinationGeo,
+
+      'rideDate': rideDate,
+      'rideTime': rideTime,
       'seatRequested': seatRequested,
       'requestStatus': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
       'riderId': user.uid,
     });
 
-    return requestID;
+    return requestId;
   }
 }

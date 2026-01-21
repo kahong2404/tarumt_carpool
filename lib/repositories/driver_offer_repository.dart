@@ -23,21 +23,21 @@ class DriverOfferRepository {
   }
 
   // ------------------------
-  // CREATE (returns created offerId)
+  // CREATE
   // ------------------------
   Future<String> create(DriverOffer offer) async {
     final uid = _requireUid();
 
-    // ensure owner is current user
-    final fixedOffer = offer.copyWith(driverId: uid);
+    // enforce owner
+    final fixed = offer.copyWith(driverId: uid);
 
-    final docRef = await _col.add(fixedOffer.toMapForCreate());
+    final docRef = await _col.add(fixed.toMapForCreate());
     await docRef.update({'offerId': docRef.id}); // optional
     return docRef.id;
   }
 
   // ------------------------
-  // READ: stream open offers
+  // READ
   // ------------------------
   Stream<List<DriverOffer>> streamOpenOffers() {
     return _col
@@ -47,7 +47,6 @@ class DriverOfferRepository {
         .map((snap) => snap.docs.map(DriverOffer.fromDoc).toList());
   }
 
-  // READ: stream current user's offers
   Stream<List<DriverOffer>> streamMine() {
     final uid = _requireUid();
     return _col
@@ -57,7 +56,6 @@ class DriverOfferRepository {
         .map((snap) => snap.docs.map(DriverOffer.fromDoc).toList());
   }
 
-  // READ: get one by id (once)
   Future<DriverOffer?> getById(String offerId) async {
     final doc = await _col.doc(offerId).get();
     if (!doc.exists) return null;
@@ -65,31 +63,33 @@ class DriverOfferRepository {
   }
 
   // ------------------------
-  // UPDATE (full update using DriverOffer object)
+  // UPDATE (full)
   // ------------------------
   Future<void> update(DriverOffer offer) async {
     final uid = _requireUid();
     final id = offer.offerId;
-    if (id == null || id.isEmpty) throw Exception('offerId is required to update');
+    if (id == null || id.isEmpty) {
+      throw Exception('offerId required');
+    }
 
-    // Ownership check
     final existing = await _col.doc(id).get();
     if (!existing.exists) throw Exception('Offer not found');
-    final data = existing.data();
-    if (data == null || data['driverId'] != uid) {
-      throw Exception('Not allowed: you are not the owner of this offer');
+    if (existing.data()?['driverId'] != uid) {
+      throw Exception('Not allowed: not owner');
     }
 
     await _col.doc(id).update(offer.toMapForUpdate());
   }
 
   // ------------------------
-  // PATCH UPDATE (only update some fields)
+  // PATCH (partial update)
   // ------------------------
   Future<void> patch(
       String offerId, {
         String? pickup,
         String? destination,
+        GeoPoint? pickupGeo,
+        GeoPoint? destinationGeo,
         DateTime? rideDateTime,
         int? seatsAvailable,
         double? fare,
@@ -99,17 +99,21 @@ class DriverOfferRepository {
 
     final existing = await _col.doc(offerId).get();
     if (!existing.exists) throw Exception('Offer not found');
-    final data = existing.data();
-    if (data == null || data['driverId'] != uid) {
-      throw Exception('Not allowed: you are not the owner of this offer');
+    if (existing.data()?['driverId'] != uid) {
+      throw Exception('Not allowed: not owner');
     }
 
     final Map<String, dynamic> updates = {
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
     if (pickup != null) updates['pickup'] = pickup.trim();
     if (destination != null) updates['destination'] = destination.trim();
-    if (rideDateTime != null) updates['rideDateTime'] = Timestamp.fromDate(rideDateTime);
+    if (pickupGeo != null) updates['pickupGeo'] = pickupGeo;
+    if (destinationGeo != null) updates['destinationGeo'] = destinationGeo;
+    if (rideDateTime != null) {
+      updates['rideDateTime'] = Timestamp.fromDate(rideDateTime);
+    }
     if (seatsAvailable != null) updates['seatsAvailable'] = seatsAvailable;
     if (fare != null) updates['fare'] = fare;
     if (status != null) updates['status'] = statusToString(status);
@@ -125,15 +129,13 @@ class DriverOfferRepository {
 
     final doc = await _col.doc(offerId).get();
     if (!doc.exists) return;
-    final data = doc.data();
-    if (data == null || data['driverId'] != uid) {
-      throw Exception('Not allowed: you are not the owner of this offer');
+    if (doc.data()?['driverId'] != uid) {
+      throw Exception('Not allowed: not owner');
     }
 
     await _col.doc(offerId).delete();
   }
 
-  // Optional: Soft delete
   Future<void> cancel(String offerId) async {
     await patch(offerId, status: DriverOfferStatus.cancelled);
   }

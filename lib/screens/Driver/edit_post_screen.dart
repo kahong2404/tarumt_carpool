@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
-import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
+import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
 
 class EditPostScreenRides extends StatefulWidget {
   final String offerId; // ✅ required to edit the correct post

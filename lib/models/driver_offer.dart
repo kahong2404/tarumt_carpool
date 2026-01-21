@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum DriverOfferStatus { open, booked, completed, cancelled }
 
+// ------------------------
+// Helpers
+// ------------------------
 DriverOfferStatus statusFromString(String s) {
   switch (s) {
     case 'open':
@@ -17,24 +20,30 @@ DriverOfferStatus statusFromString(String s) {
   }
 }
 
-String statusToString(DriverOfferStatus s) {
-  return s.toString().split('.').last; // open/booked/...
-}
+String statusToString(DriverOfferStatus s) =>
+    s.toString().split('.').last;
 
+// ------------------------
+// Model
+// ------------------------
 class DriverOffer {
-  final String? offerId; // firestore doc id
+  final String? offerId; // Firestore doc id
   final String driverId;
 
+  // Display text
   final String pickup;
   final String destination;
-  final DateTime rideDateTime;
 
+  // ✅ GeoPoints (important)
+  final GeoPoint pickupGeo;
+  final GeoPoint destinationGeo;
+
+  final DateTime rideDateTime;
   final int seatsAvailable;
   final double fare;
-
   final DriverOfferStatus status;
 
-  final DateTime? createdAt; // server timestamp -> may be null on first create
+  final DateTime? createdAt;
   final DateTime? updatedAt;
 
   const DriverOffer({
@@ -42,6 +51,8 @@ class DriverOffer {
     required this.driverId,
     required this.pickup,
     required this.destination,
+    required this.pickupGeo,
+    required this.destinationGeo,
     required this.rideDateTime,
     required this.seatsAvailable,
     required this.fare,
@@ -50,11 +61,16 @@ class DriverOffer {
     this.updatedAt,
   });
 
+  // ------------------------
+  // Copy
+  // ------------------------
   DriverOffer copyWith({
     String? offerId,
     String? driverId,
     String? pickup,
     String? destination,
+    GeoPoint? pickupGeo,
+    GeoPoint? destinationGeo,
     DateTime? rideDateTime,
     int? seatsAvailable,
     double? fare,
@@ -67,6 +83,8 @@ class DriverOffer {
       driverId: driverId ?? this.driverId,
       pickup: pickup ?? this.pickup,
       destination: destination ?? this.destination,
+      pickupGeo: pickupGeo ?? this.pickupGeo,
+      destinationGeo: destinationGeo ?? this.destinationGeo,
       rideDateTime: rideDateTime ?? this.rideDateTime,
       seatsAvailable: seatsAvailable ?? this.seatsAvailable,
       fare: fare ?? this.fare,
@@ -76,12 +94,19 @@ class DriverOffer {
     );
   }
 
+  // ------------------------
+  // Firestore mapping
+  // ------------------------
   Map<String, dynamic> toMapForCreate() {
-    // For create: timestamps should be server-generated
     return {
       'driverId': driverId,
       'pickup': pickup.trim(),
       'destination': destination.trim(),
+
+      // ✅ GeoPoints
+      'pickupGeo': pickupGeo,
+      'destinationGeo': destinationGeo,
+
       'rideDateTime': Timestamp.fromDate(rideDateTime),
       'seatsAvailable': seatsAvailable,
       'fare': fare,
@@ -92,10 +117,11 @@ class DriverOffer {
   }
 
   Map<String, dynamic> toMapForUpdate() {
-    // For update: only fields that exist in this object (full update)
     return {
       'pickup': pickup.trim(),
       'destination': destination.trim(),
+      'pickupGeo': pickupGeo,
+      'destinationGeo': destinationGeo,
       'rideDateTime': Timestamp.fromDate(rideDateTime),
       'seatsAvailable': seatsAvailable,
       'fare': fare,
@@ -104,22 +130,35 @@ class DriverOffer {
     };
   }
 
+  // ------------------------
+  // Firestore → Model
+  // ------------------------
   static DriverOffer fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) {
-      throw Exception('DriverOffer doc has no data: ${doc.id}');
+      throw Exception('DriverOffer has no data: ${doc.id}');
     }
 
-    final Timestamp? rideTs = data['rideDateTime'];
-    final Timestamp? createdTs = data['createdAt'];
-    final Timestamp? updatedTs = data['updatedAt'];
+    final rideTs = data['rideDateTime'] as Timestamp?;
+    final createdTs = data['createdAt'] as Timestamp?;
+    final updatedTs = data['updatedAt'] as Timestamp?;
+
+    final pickupGeo = data['pickupGeo'];
+    final destinationGeo = data['destinationGeo'];
+
+    if (pickupGeo is! GeoPoint || destinationGeo is! GeoPoint) {
+      throw Exception('GeoPoint missing in DriverOffer ${doc.id}');
+    }
 
     return DriverOffer(
       offerId: doc.id,
       driverId: (data['driverId'] ?? '') as String,
       pickup: (data['pickup'] ?? '') as String,
       destination: (data['destination'] ?? '') as String,
-      rideDateTime: (rideTs?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0)),
+      pickupGeo: pickupGeo,
+      destinationGeo: destinationGeo,
+      rideDateTime:
+      (rideTs?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0)),
       seatsAvailable: (data['seatsAvailable'] ?? 0) as int,
       fare: (data['fare'] ?? 0).toDouble(),
       status: statusFromString((data['status'] ?? 'open') as String),

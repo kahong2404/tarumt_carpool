@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/driver_offer.dart';
-import 'package:tarumt_carpool/repositories/rides_offer_repository.dart';
+import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
 import 'package:tarumt_carpool/screens/Driver/edit_post_screen.dart';

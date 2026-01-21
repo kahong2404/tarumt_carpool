@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -8,6 +9,7 @@ import 'package:tarumt_carpool/utils/distance.dart';
 
 import 'rider_home_header.dart';
 import 'open_offers_list.dart';
+import 'match_map_screen.dart';
 
 class RiderHomeContent extends StatelessWidget {
   const RiderHomeContent({super.key});
@@ -97,18 +99,40 @@ class RiderHomeContent extends StatelessWidget {
     final repo = RiderRequestRepository();
 
     try {
-      await repo.createRiderRequest(
-        origin: originAddress,
-        destination: destinationAddress,
+      final requestId = await repo.createRiderRequest(
+        originAddress: originAddress,
+        destinationAddress: destinationAddress,
         rideDate: rideDate,
         rideTime: rideTime,
         seatRequested: seatRequested,
+
+        // ✅ GeoPoint version
+        originGeo: GeoPoint(
+          (pickup["lat"] as num).toDouble(),
+          (pickup["lng"] as num).toDouble(),
+        ),
+        destinationGeo: GeoPoint(
+          (dropoff["lat"] as num).toDouble(),
+          (dropoff["lng"] as num).toDouble(),
+        ),
       );
 
+
       if (!context.mounted) return;
+
+// optional: show snack
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Request created ($seatRequested seat)')),
       );
+
+// ✅ navigate to matching map
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MatchMapScreen(requestId: requestId),
+        ),
+      );
+
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
