@@ -49,7 +49,6 @@ class ProfileService {
   Future<void> becomeDriver() async {
     final uid = _uid;
     await _repo.addRoleIfMissing(uid: uid, role: 'driver');
-    await _repo.updateUser(uid: uid, data: {'driverStatus': 'pending'});
     await _repo.setActiveRole(uid: uid, activeRole: 'driver');
   }
 

@@ -7,6 +7,10 @@ import '../../../services/profile_service.dart';
 import '../../../widgets/profile/profile_header.dart';
 import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
+import '../../driver_verification/driver_verification_center_page.dart';
+
+// ✅ adjust this import if your path is different
+import '../../driver_verification/driver_verification_form_page.dart';
 
 class DriverProfileDashboard extends StatelessWidget {
   DriverProfileDashboard({super.key});
@@ -104,6 +108,9 @@ class DriverProfileDashboard extends StatelessWidget {
             return const SizedBox.shrink();
           }
 
+          // ✅ IMPORTANT: call roleButton() ONCE
+          final rb = roleButton();
+
           return Column(
             children: [
               ProfileHeader(
@@ -121,8 +128,32 @@ class DriverProfileDashboard extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(12),
                   children: [
-                    roleButton(),
-                    if (roleButton() is! SizedBox) const SizedBox(height: 10),
+                    rb,
+                    if (rb is! SizedBox) const SizedBox(height: 10),
+
+                    ProfileActionButton(
+                      label: 'Driver Verification Center',
+                      icon: Icons.verified_user_outlined,
+                      onTap: () {
+                        final staffId = (d['staffId'] ?? '').toString();
+
+                        if (staffId.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Staff ID not found.')),
+                          );
+                          return;
+                        }
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DriverVerificationCenterPage(
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
 
                     ProfileActionButton(
                       label: 'Earnings',

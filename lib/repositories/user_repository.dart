@@ -70,6 +70,28 @@ class UserRepository {
     return _users.doc(uid).snapshots().map((doc) => doc.data());
   }
 
+  // ✅ NEW: read raw user doc map (sometimes simpler than AppUser)
+  Future<Map<String, dynamic>?> getUserDocMap(String uid) async {
+    final doc = await _users.doc(uid).get();
+    if (!doc.exists) return null;
+    return doc.data();
+  }
+
+  // ✅ NEW: get staffId of current logged-in user
+  Future<String?> getStaffIdOfCurrentUser() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+
+    final doc = await _users.doc(uid).get();
+    if (!doc.exists) return null;
+
+    final data = doc.data();
+    final staffId = (data?['staffId'] ?? '').toString().trim();
+    if (staffId.isEmpty) return null;
+
+    return staffId;
+  }
+
   // =========================
   // PROFILE: PHONE UPDATE
   // =========================
@@ -104,7 +126,6 @@ class UserRepository {
   // =========================
   // ✅ ROLE METHODS
   // =========================
-
   Future<void> setActiveRole({
     required String uid,
     required String activeRole, // 'rider' | 'driver' | 'admin'

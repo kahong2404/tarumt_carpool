@@ -53,7 +53,7 @@ class AuthService {
       phone: phoneTrim,
       roles: [initialRole],
       activeRole: initialRole,
-      driverStatus: initialRole == 'driver' ? 'pending' : 'not_driver',
+      driverStatus: 'not_applied',
       walletBalance: 0,
       photoUrl: null,
     );
