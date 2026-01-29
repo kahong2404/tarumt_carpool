@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
+import 'package:tarumt_carpool/services/google_direction_service.dart';
+import 'package:tarumt_carpool/utils/geo_utils.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
 import 'package:tarumt_carpool/widgets/seat_request_dialog.dart';
-import 'package:tarumt_carpool/utils/distance.dart';
 
 import 'rider_home_header.dart';
 import 'open_offers_list.dart';
-import 'match_map_screen.dart';
 
 class RiderHomeContent extends StatelessWidget {
   const RiderHomeContent({super.key});
@@ -50,31 +50,27 @@ class RiderHomeContent extends StatelessWidget {
     const klCenterLng = 101.7291;
     const serviceRadiusKm = 40.0; // Klang Valley range
 
-    final pickupKmFromKL = distanceKm(
-      lat1: pickup["lat"],
-      lon1: pickup["lng"],
-      lat2: klCenterLat,
-      lon2: klCenterLng,
+    final pickupKmFromKL = haversineKm(
+      lat1: klCenterLat,
+      lon1: klCenterLng,
+      lat2: pickup["lat"],
+      lon2: pickup["lng"],
     );
 
-    final dropoffKmFromKL = distanceKm(
-      lat1: dropoff["lat"],
-      lon1: dropoff["lng"],
-      lat2: klCenterLat,
-      lon2: klCenterLng,
+    final dropoffKmFromKL = haversineKm(
+      lat1: klCenterLat,
+      lon1: klCenterLng,
+      lat2: dropoff["lat"],
+      lon2: dropoff["lng"],
     );
 
     if (pickupKmFromKL > serviceRadiusKm ||
         dropoffKmFromKL > serviceRadiusKm) {
+      // reject
       if (!context.mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Only KL area is supported (within ${serviceRadiusKm.toInt()} km).\n'
-                'Pickup: ${pickupKmFromKL.toStringAsFixed(1)} km, '
-                'Destination: ${dropoffKmFromKL.toStringAsFixed(1)} km',
-          ),
+          content: Text( 'Only KL area is supported (within ${serviceRadiusKm.toInt()} km).\n', ),
         ),
       );
       return;
@@ -120,18 +116,18 @@ class RiderHomeContent extends StatelessWidget {
 
       if (!context.mounted) return;
 
-// optional: show snack
+      // optional: show snack
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Request created ($seatRequested seat)')),
       );
 
-// ✅ navigate to matching map
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MatchMapScreen(requestId: requestId),
-        ),
-      );
+// // ✅ navigate to matching map
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (_) => MatchMapScreen(requestId: requestId),
+//         ),
+//       );
 
     } catch (e) {
       if (!context.mounted) return;

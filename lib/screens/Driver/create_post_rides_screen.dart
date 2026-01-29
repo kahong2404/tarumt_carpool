@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
+import 'package:tarumt_carpool/services/google_direction_service.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
-import 'package:tarumt_carpool/utils/distance.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
@@ -21,6 +21,10 @@ class _PostRidesState extends State<PostRides> {
   final _timeCtrl = TextEditingController();
   final _seatsCtrl = TextEditingController();
   final _fareCtrl = TextEditingController();
+
+  static const _googleApiKey = 'AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA';
+  late final _dir = GoogleDirectionsService(_googleApiKey);
+  bool _calculating = false;
 
   final DriverOfferRepository _repo = DriverOfferRepository();
 
@@ -77,24 +81,35 @@ class _PostRidesState extends State<PostRides> {
     return double.parse(capped.toStringAsFixed(2));
   }
 
-  void _recalcFareIfPossible() {
+  Future<void> _recalcFareIfPossible() async {
     if (_pickupLatLng == null || _destLatLng == null) return;
+    if (_calculating) return;
 
-    final km = distanceKm(
-      lat1: _pickupLatLng!.latitude,
-      lon1: _pickupLatLng!.longitude,
-      lat2: _destLatLng!.latitude,
-      lon2: _destLatLng!.longitude,
-    );
+    setState(() => _calculating = true);
 
-    final fare = _calcFare(km);
+    try {
+      final km = await _dir.getDrivingDistanceKm(
+        origin: _pickupLatLng!,
+        destination: _destLatLng!,
+      );
 
-    setState(() {
-      _distanceKm = km;
-      _computedFare = fare;
-      _fareCtrl.text = 'RM ${fare.toStringAsFixed(2)}';
-    });
+      final fare = _calcFare(km);
+
+      if (!mounted) return;
+      setState(() {
+        _distanceKm = km;
+        _computedFare = fare;
+        _fareCtrl.text = 'RM ${fare.toStringAsFixed(2)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Distance calculation failed');
+    } finally {
+      if (mounted) setState(() => _calculating = false);
+    }
   }
+
+
 
   // =========================
   // Select Start (Pickup)
