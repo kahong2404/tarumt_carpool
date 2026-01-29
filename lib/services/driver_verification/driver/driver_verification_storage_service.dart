@@ -11,13 +11,16 @@ class DriverVerificationStorageService {
   Future<String> uploadVehicleImage({
     required String staffId,
     required Uint8List bytes,
+    required String contentType, // image/jpeg or image/png
   }) async {
-    final ref = _ref(staffId, 'vehicle.jpg');
+    // keep extension consistent with contentType
+    final filename = contentType.contains('png') ? 'vehicle.png' : 'vehicle.jpg';
+    final ref = _ref(staffId, filename);
 
     final task = await ref.putData(
       bytes,
       SettableMetadata(
-        contentType: 'image/jpeg',
+        contentType: contentType,
         cacheControl: 'public,max-age=3600',
       ),
     );

@@ -15,7 +15,7 @@ class AdminGuard extends StatelessWidget {
     if (!doc.exists) return false;
 
     final data = doc.data()!;
-    return (data['role'] as String?) == 'admin';
+    return (data['activeRole'] as String?) == 'admin';
   }
 
   @override

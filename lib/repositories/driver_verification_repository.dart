@@ -7,10 +7,9 @@ class DriverVerificationRepository {
   CollectionReference<Map<String, dynamic>> get _verifications =>
       _db.collection('driver_verifications');
 
-  CollectionReference<Map<String, dynamic>> get _users =>
-      _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
 
-  /// Use staffId as docId (your choice)
+  /// staffId is docId (your choice)
   Stream<Map<String, dynamic>?> streamMyVerificationByStaffId(String staffId) {
     return _verifications.doc(staffId).snapshots().map((doc) {
       if (!doc.exists) return null;
@@ -18,6 +17,9 @@ class DriverVerificationRepository {
     });
   }
 
+  /// Submit or Reapply:
+  /// - Always sets status to pending
+  /// - Clears rejectReason/approvedBy/approvedAt so old admin result won't remain
   Future<void> submit({
     required String uid,
     required String staffId,
@@ -27,11 +29,22 @@ class DriverVerificationRepository {
 
     await ref.set({
       ...profile.toMapForSubmit(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      // keep a reference to uid too (helpful for admin)
+
+      // 🔐 reference fields
       'uid': uid,
       'staffId': staffId,
+
+      // 🕒 timestamps
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+
+      // ✅ IMPORTANT: clear old reject/approval fields on re-submit
+      'verification': {
+        'status': 'pending',
+        'rejectReason': FieldValue.delete(),
+        'approvedBy': FieldValue.delete(),
+        'approvedAt': FieldValue.delete(),
+      },
     }, SetOptions(merge: true));
 
     // optional: keep users driverStatus synced

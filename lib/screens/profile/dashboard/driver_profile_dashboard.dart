@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../notifications/notification_list_page.dart';
 
 import '../../../auth/after_login_router.dart';
 import '../../../repositories/user_repository.dart';
@@ -7,10 +8,10 @@ import '../../../services/profile_service.dart';
 import '../../../widgets/profile/profile_header.dart';
 import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
-import '../../driver_verification/driver_verification_center_page.dart';
+import '../../driver_verification/driver/driver_verification_center_page.dart';
 
 // ✅ adjust this import if your path is different
-import '../../driver_verification/driver_verification_form_page.dart';
+import '../../driver_verification/driver/driver_verification_form_page.dart';
 
 class DriverProfileDashboard extends StatelessWidget {
   DriverProfileDashboard({super.key});
@@ -147,7 +148,7 @@ class DriverProfileDashboard extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const DriverVerificationCenterPage(
+                            builder: (_) =>  DriverVerificationCenterPage(
                             ),
                           ),
                         );
@@ -170,6 +171,17 @@ class DriverProfileDashboard extends StatelessWidget {
                       icon: Icons.star_border,
                       onTap: () {},
                     ),
+                    ProfileActionButton(
+                      label: 'Notifications',
+                      icon: Icons.notifications_outlined,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => NotificationListPage()),
+                        );
+                      },
+                    ),
+
                   ],
                 ),
               ),

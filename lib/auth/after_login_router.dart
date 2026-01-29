@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notifications/fcm_service.dart';
 
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
@@ -34,7 +35,8 @@ class AfterLoginRouter extends StatelessWidget {
           message: kProfileMissingMessage,
         );
       }
-
+// ✅ ADD THIS HERE (after user doc exists)
+      await FcmService().initAndSaveToken();
       // ✅ Use activeRole ONLY
       final ar = me.activeRole;
 

@@ -94,13 +94,23 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
     try {
       await _svc.updatePhoneRaw(_phoneCtrl.text);
-      if (mounted) setState(() => _editingPhone = false);
+
+      if (!mounted) return;
+
+      setState(() => _editingPhone = false);
+
+      // ✅ show success message
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number updated successfully!')),
+      );
     } catch (e) {
       _setErrors(e);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+
 
   Future<void> _logout() async {
     if (_loggingOut) return;

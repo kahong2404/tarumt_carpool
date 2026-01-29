@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../driver_verification/admin/driver_verification_list_page.dart';
 
 import '../../../repositories/user_repository.dart';
 import '../../../widgets/profile/profile_header.dart';
@@ -49,6 +50,20 @@ class AdminProfileDashboard extends StatelessWidget {
                     ProfileActionButton(label: 'User Management', icon: Icons.manage_accounts_outlined, onTap: () {}),
                     ProfileActionButton(label: 'Reports', icon: Icons.analytics_outlined, onTap: () {}),
                     ProfileActionButton(label: 'System Settings', icon: Icons.settings_outlined, onTap: () {}),
+                    ProfileActionButton(
+                      label: 'Driver Verification',
+                      icon: Icons.verified_user_outlined,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DriverVerificationListPage(),
+                          ),
+                        );
+                      },
+                    ),
+
+
                   ],
                 ),
               ),
