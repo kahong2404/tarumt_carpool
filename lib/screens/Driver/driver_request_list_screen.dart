@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../repositories/ride_repository.dart';
-import '../../repositories/rider_request_repository.dart';
 import 'driver_trip_map_screen.dart';
 
 class DriverRequestListScreen extends StatelessWidget {
   DriverRequestListScreen({super.key});
 
   final _rideRepo = RideRepository();
-  final _requestRepo = RiderRequestRepository();
 
   @override
   Widget build(BuildContext context) {
