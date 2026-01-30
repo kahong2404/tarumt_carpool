@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../models/driver_verification_profile.dart';
-import 'driver_verification_storage_service.dart';
-import 'driver_verification_service.dart';
-import '../../../services/pickers/image_picker_service.dart';
-import '../../../services/pickers/pdf_picker_service.dart';
+import '../../../repositories/driver_verification_repository.dart';
 
-import '../../../utils/administration_verification/app_strings.dart' as dv_s;
-import '../../../utils/administration_verification/validators.dart' as dv_v;
-import '../../../utils/administration_verification/app_errors.dart' as dv_err;
+import '../../../utils/administration_verification/app_errors.dart';
+import '../../../utils/administration_verification/app_strings.dart';
+import '../../../utils/administration_verification/validators.dart';
+
+import 'driver_verification_service.dart';
+import 'driver_verification_storage_service.dart';
+
+import '../../pickers/image_picker_service.dart';
+import '../../pickers/pdf_picker_service.dart';
 
 class DriverVerificationFormState {
   final bool loadingStaffId;
@@ -105,16 +109,19 @@ class DriverVerificationFormController extends ChangeNotifier {
   final DriverVerificationStorageService _storage;
   final ImagePickerService _imgPicker;
   final PdfPickerService _pdfPicker;
+  final DriverVerificationRepository _repo;
 
   DriverVerificationFormController({
     DriverVerificationService? svc,
     DriverVerificationStorageService? storage,
     ImagePickerService? imgPicker,
     PdfPickerService? pdfPicker,
+    DriverVerificationRepository? repo,
   })  : _svc = svc ?? DriverVerificationService(),
         _storage = storage ?? DriverVerificationStorageService(),
         _imgPicker = imgPicker ?? ImagePickerService(),
-        _pdfPicker = pdfPicker ?? PdfPickerService();
+        _pdfPicker = pdfPicker ?? PdfPickerService(),
+        _repo = repo ?? DriverVerificationRepository();
 
   Future<void> init() async {
     try {
@@ -128,10 +135,26 @@ class DriverVerificationFormController extends ChangeNotifier {
     } catch (e) {
       state = state.copyWith(
         loadingStaffId: false,
-        errors: dv_err.AppErrors.friendlyList(e),
+        errors: AppErrors.friendlyList(e),
       );
       notifyListeners();
     }
+  }
+
+  /// ✅ Prefill uploads when reapply (optional)
+  void prefillFromExisting(Map<String, dynamic> doc) {
+    final p = DriverVerificationProfile.fromMap(doc);
+
+    state = state.copyWith(
+      vehicleUrl: p.vehicleImageUrl.trim().isEmpty ? null : p.vehicleImageUrl.trim(),
+      licenseUrl: p.licensePdfUrl.trim().isEmpty ? null : p.licensePdfUrl.trim(),
+      insuranceUrl: p.insurancePdfUrl.trim().isEmpty ? null : p.insurancePdfUrl.trim(),
+      vehicleName: p.vehicleImageUrl.trim().isEmpty ? null : 'Existing uploaded image',
+      licenseName: p.licensePdfUrl.trim().isEmpty ? null : 'Existing uploaded PDF',
+      insuranceName: p.insurancePdfUrl.trim().isEmpty ? null : 'Existing uploaded PDF',
+      errors: [],
+    );
+    notifyListeners();
   }
 
   Future<void> pickVehicleImage(BuildContext context) async {
@@ -140,34 +163,24 @@ class DriverVerificationFormController extends ChangeNotifier {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('Camera'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera),
+            title: const Text('Camera'),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library),
+            title: const Text('Gallery'),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+        ]),
       ),
     );
     if (source == null) return;
 
     final picked = await _imgPicker.pickVehicleImage(source: source);
     if (picked == null) return;
-
-    final tooLarge = dv_v.Validators.validateFileSize(picked.sizeBytes);
-    if (tooLarge != null) {
-      state = state.copyWith(errors: [tooLarge]);
-      notifyListeners();
-      return;
-    }
 
     state = state.copyWith(
       uploadingVehicle: true,
@@ -186,16 +199,10 @@ class DriverVerificationFormController extends ChangeNotifier {
         contentType: contentType,
       );
 
-      state = state.copyWith(
-        vehicleUrl: url,
-        uploadingVehicle: false,
-      );
+      state = state.copyWith(vehicleUrl: url, uploadingVehicle: false);
       notifyListeners();
     } catch (e) {
-      state = state.copyWith(
-        uploadingVehicle: false,
-        errors: dv_err.AppErrors.friendlyList(e),
-      );
+      state = state.copyWith(uploadingVehicle: false, errors: AppErrors.friendlyList(e));
       notifyListeners();
     }
   }
@@ -206,31 +213,21 @@ class DriverVerificationFormController extends ChangeNotifier {
     final file = await _pdfPicker.pickPdfFile();
     if (file == null) return;
 
-    if (!dv_v.Validators.isPdfName(file.name)) {
-      state = state.copyWith(errors: [dv_s.AppStrings.pdfOnly]);
-      notifyListeners();
-      return;
-    }
-
     final bytes = file.bytes;
     if (bytes == null) {
-      state = state.copyWith(errors: ['Failed to read PDF bytes. Please try again.']);
+      state = state.copyWith(errors: [AppStrings.pdfOnly]);
       notifyListeners();
       return;
     }
 
-    final tooLarge = dv_v.Validators.validateFileSize(bytes.length);
-    if (tooLarge != null) {
-      state = state.copyWith(errors: [tooLarge]);
+    final sizeErr = Validators.validateFileSize(bytes.length);
+    if (sizeErr != null) {
+      state = state.copyWith(errors: [sizeErr]);
       notifyListeners();
       return;
     }
 
-    state = state.copyWith(
-      uploadingLicense: true,
-      licenseName: file.name,
-      errors: [],
-    );
+    state = state.copyWith(uploadingLicense: true, licenseName: file.name, errors: []);
     notifyListeners();
 
     try {
@@ -238,17 +235,10 @@ class DriverVerificationFormController extends ChangeNotifier {
         staffId: state.staffId!,
         bytes: bytes,
       );
-
-      state = state.copyWith(
-        licenseUrl: url,
-        uploadingLicense: false,
-      );
+      state = state.copyWith(licenseUrl: url, uploadingLicense: false);
       notifyListeners();
     } catch (e) {
-      state = state.copyWith(
-        uploadingLicense: false,
-        errors: dv_err.AppErrors.friendlyList(e),
-      );
+      state = state.copyWith(uploadingLicense: false, errors: AppErrors.friendlyList(e));
       notifyListeners();
     }
   }
@@ -259,22 +249,16 @@ class DriverVerificationFormController extends ChangeNotifier {
     final file = await _pdfPicker.pickPdfFile();
     if (file == null) return;
 
-    if (!dv_v.Validators.isPdfName(file.name)) {
-      state = state.copyWith(errors: [dv_s.AppStrings.pdfOnly]);
-      notifyListeners();
-      return;
-    }
-
     final bytes = file.bytes;
     if (bytes == null) {
-      state = state.copyWith(errors: ['Failed to read PDF bytes. Please try again.']);
+      state = state.copyWith(errors: [AppStrings.pdfOnly]);
       notifyListeners();
       return;
     }
 
-    final tooLarge = dv_v.Validators.validateFileSize(bytes.length);
-    if (tooLarge != null) {
-      state = state.copyWith(errors: [tooLarge]);
+    final sizeErr = Validators.validateFileSize(bytes.length);
+    if (sizeErr != null) {
+      state = state.copyWith(errors: [sizeErr]);
       notifyListeners();
       return;
     }
@@ -291,17 +275,10 @@ class DriverVerificationFormController extends ChangeNotifier {
         staffId: state.staffId!,
         bytes: bytes,
       );
-
-      state = state.copyWith(
-        insuranceUrl: url,
-        uploadingInsurance: false,
-      );
+      state = state.copyWith(insuranceUrl: url, uploadingInsurance: false);
       notifyListeners();
     } catch (e) {
-      state = state.copyWith(
-        uploadingInsurance: false,
-        errors: dv_err.AppErrors.friendlyList(e),
-      );
+      state = state.copyWith(uploadingInsurance: false, errors: AppErrors.friendlyList(e));
       notifyListeners();
     }
   }
@@ -318,29 +295,23 @@ class DriverVerificationFormController extends ChangeNotifier {
     required String plate,
     required String color,
   }) async {
-    if (state.staffId == null) {
-      state = state.copyWith(errors: ['Missing staffId in user profile.']);
+    if (!canSubmit) {
+      state = state.copyWith(errors: [AppStrings.genericError]);
       notifyListeners();
       return;
     }
 
-    final errs = dv_v.Validators.validateForm(
+    final errors = Validators.validateForm(
       model: model,
       plate: plate,
       color: color,
-      hasVehicleImage: state.vehicleUrl?.isNotEmpty ?? false,
-      hasLicensePdf: state.licenseUrl?.isNotEmpty ?? false,
-      hasInsurancePdf: state.insuranceUrl?.isNotEmpty ?? false,
+      hasVehicleImage: (state.vehicleUrl ?? '').trim().isNotEmpty,
+      hasLicensePdf: (state.licenseUrl ?? '').trim().isNotEmpty,
+      hasInsurancePdf: (state.insuranceUrl ?? '').trim().isNotEmpty,
     );
 
-    if (errs.isNotEmpty) {
-      state = state.copyWith(errors: errs);
-      notifyListeners();
-      return;
-    }
-
-    if (!canSubmit) {
-      state = state.copyWith(errors: ['Please wait, uploading files...']);
+    if (errors.isNotEmpty) {
+      state = state.copyWith(errors: errors);
       notifyListeners();
       return;
     }
@@ -349,27 +320,32 @@ class DriverVerificationFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception('Not signed in.');
+
+      final staffId = state.staffId!;
       final profile = DriverVerificationProfile(
-        model: model.trim(),
+        vehicleModel: model.trim(),
         plateNumber: plate.trim(),
-        color: color,
+        color: color.trim(),
         vehicleImageUrl: state.vehicleUrl!,
         licensePdfUrl: state.licenseUrl!,
         insurancePdfUrl: state.insuranceUrl!,
         status: 'pending',
-        rejectReason: null,
-        approvedBy: null,
-        approvedAt: null,
       );
 
-      await _svc.submitPending(profile: profile);
+      await _repo.submitPending(
+        uid: uid,
+        staffId: staffId,
+        profile: profile,
+      );
 
       state = state.copyWith(submitting: false);
       notifyListeners();
     } catch (e) {
       state = state.copyWith(
         submitting: false,
-        errors: dv_err.AppErrors.friendlyList(e),
+        errors: AppErrors.friendlyList(e),
       );
       notifyListeners();
     }

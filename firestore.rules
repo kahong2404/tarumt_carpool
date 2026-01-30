@@ -1,0 +1,169 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ✅ ADMIN CHECK uses activeRole
+    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == "admin";
+    }
+
+    // 🔓 PUBLIC READ for all (kept as-is)
+    match /{document=**} {
+      allow read: if true;
+    }
+
+    // 👤 USERS COLLECTION
+    match /users/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == request.auth.uid;
+
+      // ✅ owner can update themselves
+      // ✅ admin can only update driverStatus + updatedAt
+      allow update: if isOwner(uid) || (
+        isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['driverStatus', 'updatedAt'])
+      );
+
+      allow delete: if isOwner(uid);
+    }
+
+    // 🚗 DRIVER OFFERS (kept as-is)
+    match /driver_offers/{offerId} {
+      allow create: if signedIn()
+        && request.resource.data.driverId == request.auth.uid;
+
+      allow update, delete: if signedIn()
+        && resource.data.driverId == request.auth.uid;
+    }
+
+    // 🚕 RIDER REQUESTS (kept as-is)
+    match /riderRequests/{requestId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.riderId == request.auth.uid;
+
+      // rider can:
+      // - cancel ONLY while waiting
+      // - system (transaction) can update when matched
+      allow update: if signedIn() && (
+
+        // rider cancels while waiting
+        (
+          resource.data.riderId == request.auth.uid
+          && resource.data.status == 'waiting'
+          && request.resource.data.status == 'cancelled'
+        )
+
+        ||
+
+        // system links ride (driver acceptance)
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'activeRideId', 'updatedAt'])
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    // 🚗 RIDES (active trip after acceptance)
+    match /rides/{rideId} {
+
+      function validTransition(from, to) {
+        return
+          (from == 'incoming' && to == 'arrived_pickup') ||
+          (from == 'arrived_pickup' && to == 'ongoing') ||
+          (from == 'ongoing' && to == 'arrived_destination') ||
+          (from == 'arrived_destination' && to == 'completed');
+      }
+
+      // read: rider or driver involved
+      allow read: if signedIn()
+        && (request.auth.uid == resource.data.driverID
+            || request.auth.uid == resource.data.riderID);
+
+      // create: driver only
+      allow create: if signedIn()
+        && request.resource.data.driverID == request.auth.uid
+        && request.resource.data.rideStatus == 'incoming';
+
+      // update: driver only
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.driverID
+        && (
+
+          // 1️⃣ driver live location only
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['driverLiveLocation', 'driverLiveUpdatedAt'])
+
+          ||
+
+          // 2️⃣ status transition + timestamps
+          (
+            validTransition(
+              resource.data.rideStatus,
+              request.resource.data.rideStatus
+            )
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly([
+                'rideStatus',
+                'updatedAt',
+                'arrivedPickupAt',
+                'startedAt',
+                'arrivedDestinationAt',
+                'completedAt'
+              ])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /driver_active_rides/{driverId} {
+      allow read: if request.auth != null && request.auth.uid == driverId;
+
+      // driver can create/update ONLY their own lock doc
+      allow create, update: if request.auth != null
+        && request.auth.uid == driverId;
+
+      allow delete: if false;
+    }
+
+    // ✅ DRIVER VERIFICATIONS (ONLY CHANGE IS HERE)
+    match /driver_verifications/{staffId} {
+
+      // driver creates their own verification
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.staffId == staffId;
+
+      // ✅ SINGLE allow update (driver OR admin) so admin approve/reject WORKS
+      allow update: if
+        (
+          // driver can update ONLY their own application (resubmit)
+          signedIn()
+          && request.auth.uid == resource.data.uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.staffId == staffId
+        )
+        ||
+        (
+          // admin approve / reject
+          isAdmin()
+        );
+
+      allow delete: if false;
+    }
+  }
+}

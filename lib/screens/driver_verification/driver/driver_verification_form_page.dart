@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../../widgets/primary_text_field.dart';
-import '../../../widgets/primary_button.dart';
-import '../../../widgets/error_list.dart';
-import '../../../widgets/driver_verification/upload_box.dart';
+import 'package:tarumt_carpool/repositories/driver_verification_repository.dart';
+import 'package:tarumt_carpool/models/driver_verification_profile.dart';
+import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_form_controller.dart';
+import 'package:tarumt_carpool/shared/open_url.dart';
 
-import '../../../services/driver_verification/driver/driver_verification_form_controller.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
+import 'package:tarumt_carpool/widgets/primary_button.dart';
+import 'package:tarumt_carpool/widgets/error_list.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/upload_box.dart';
 
 class DriverVerificationFormPage extends StatefulWidget {
   const DriverVerificationFormPage({super.key});
 
   @override
-  State<DriverVerificationFormPage> createState() =>
-      _DriverVerificationFormPageState();
+  State<DriverVerificationFormPage> createState() => _DriverVerificationFormPageState();
 }
 
 class _DriverVerificationFormPageState extends State<DriverVerificationFormPage> {
@@ -23,17 +24,55 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
   final _plateCtrl = TextEditingController();
 
   final _colors = const [
-    'Black','White','Silver','Gray','Red','Blue','Green','Yellow','Orange','Brown','Other'
+    'Black',
+    'White',
+    'Silver',
+    'Gray',
+    'Red',
+    'Blue',
+    'Green',
+    'Yellow',
+    'Orange',
+    'Brown',
+    'Other'
   ];
   String _selectedColor = 'Black';
 
   late final DriverVerificationFormController controller;
 
+  bool _prefilled = false;
+
   @override
   void initState() {
     super.initState();
     controller = DriverVerificationFormController()..addListener(_onUpdate);
-    controller.init();
+
+    () async {
+      await controller.init();
+
+      // ✅ prefill ONCE
+      if (_prefilled) return;
+      _prefilled = true;
+
+      final staffId = controller.state.staffId;
+      if (staffId == null) return;
+
+      final doc = await DriverVerificationRepository().getByStaffId(staffId);
+      if (doc == null) return;
+
+      final p = DriverVerificationProfile.fromMap(doc);
+
+      // Fill text fields (even if pending/approved/rejected)
+      _modelCtrl.text = p.vehicleModel;
+      _plateCtrl.text = p.plateNumber;
+
+      if (_colors.contains(p.color)) {
+        setState(() => _selectedColor = p.color);
+      }
+
+      // Fill upload boxes
+      controller.prefillFromExisting(doc);
+    }();
   }
 
   void _onUpdate() => setState(() {});
@@ -45,11 +84,6 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
     _modelCtrl.dispose();
     _plateCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -124,7 +158,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
               uploading: s.uploadingVehicle,
               onPick: () => controller.pickVehicleImage(context),
               onOpen: (s.vehicleUrl?.isNotEmpty ?? false)
-                  ? () => _openUrl(s.vehicleUrl!)
+                  ? () => openExternalUrl(context, s.vehicleUrl!)
                   : null,
               showImagePreview: true,
             ),
@@ -140,7 +174,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
               uploading: s.uploadingLicense,
               onPick: controller.pickLicensePdf,
               onOpen: (s.licenseUrl?.isNotEmpty ?? false)
-                  ? () => _openUrl(s.licenseUrl!)
+                  ? () => openExternalUrl(context, s.licenseUrl!)
                   : null,
               showPdfIcon: true,
             ),
@@ -156,7 +190,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
               uploading: s.uploadingInsurance,
               onPick: controller.pickInsurancePdf,
               onOpen: (s.insuranceUrl?.isNotEmpty ?? false)
-                  ? () => _openUrl(s.insuranceUrl!)
+                  ? () => openExternalUrl(context, s.insuranceUrl!)
                   : null,
               showPdfIcon: true,
             ),
@@ -175,8 +209,9 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
                   color: _selectedColor,
                 );
 
-                // If submit succeeded (no errors + not submitting), pop
-                if (mounted && controller.state.errors.isEmpty && !controller.state.submitting) {
+                if (mounted &&
+                    controller.state.errors.isEmpty &&
+                    !controller.state.submitting) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Submitted. Please wait for admin review.')),
                   );

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../../services/driver_verification/driver/driver_verification_service.dart';
-import '../../../services/driver_verification/driver/driver_verification_mapper.dart';
+import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_service.dart';
+import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_mapper.dart';
+import 'package:tarumt_carpool/shared/open_url.dart';
 
-import '../../../widgets/driver_verification/vehicle_and_driver_status_card.dart';
-import '../../../widgets/driver_verification/status_button.dart';
-import '../../../widgets/driver_verification/dv_info_card.dart';
-import '../../../widgets/driver_verification/dv_files_card.dart';
-import '../../../widgets/driver_verification/dv_reject_card.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/vehicle_and_driver_status_card.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/status_button.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/dv_info_card.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/dv_files_card.dart';
+import 'package:tarumt_carpool/widgets/driver_verification/dv_reject_card.dart';
 
 import 'driver_verification_form_page.dart';
 
@@ -17,41 +17,18 @@ class DriverVerificationCenterPage extends StatelessWidget {
 
   static const brandBlue = Color(0xFF1E73FF);
 
-  // ✅ service created once
   final DriverVerificationService _svc = DriverVerificationService();
-
-  Future<void> _openUrl(String url) async {
-    if (url.trim().isEmpty) return;
-    final uri = Uri.parse(url);
-
-    // Optional: guard against invalid URLs
-    if (!await canLaunchUrl(uri)) return;
-
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
 
   _ActionConfig _actionConfig(String status) {
     switch (status) {
       case 'pending':
-        return const _ActionConfig(
-          text: 'Submitted (Pending Review)',
-          enabled: false,
-        );
+        return const _ActionConfig(text: 'Submitted (Pending Review)', enabled: false);
       case 'approved':
-        return const _ActionConfig(
-          text: 'Verified',
-          enabled: false,
-        );
+        return const _ActionConfig(text: 'Verified', enabled: false);
       case 'rejected':
-        return const _ActionConfig(
-          text: 'Reapply for Driver Verification',
-          enabled: true,
-        );
+        return const _ActionConfig(text: 'Reapply for Driver Verification', enabled: true);
       default:
-        return const _ActionConfig(
-          text: 'Apply for Driver Verification',
-          enabled: true,
-        );
+        return const _ActionConfig(text: 'Apply for Driver Verification', enabled: true);
     }
   }
 
@@ -80,7 +57,9 @@ class DriverVerificationCenterPage extends StatelessWidget {
 
           final action = _actionConfig(view.status);
 
-          // ✅ FIX: SafeArea prevents bottom content being hidden
+          // ✅ FIX: correct field name
+          final reason = (view.rejectReason ?? '').trim();
+
           return SafeArea(
             bottom: true,
             child: ListView(
@@ -106,13 +85,13 @@ class DriverVerificationCenterPage extends StatelessWidget {
                   vehicleUrl: view.vehicleUrl,
                   licenseUrl: view.licenseUrl,
                   insuranceUrl: view.insuranceUrl,
-                  onOpen: _openUrl,
+                  onOpen: (url) => openExternalUrl(context, url),
                 ),
 
-                if (view.status == 'rejected' &&
-                    (view.rejectReason ?? '').trim().isNotEmpty) ...[
+                // ✅ FIX: show reject reason
+                if (view.status == 'rejected' && reason.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  DvRejectCard(reason: view.rejectReason!.trim()),
+                  DvRejectCard(reason: reason),
                 ],
 
                 const SizedBox(height: 18),

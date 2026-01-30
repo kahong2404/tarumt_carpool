@@ -19,33 +19,93 @@ class DriverVerificationDetailPage extends StatefulWidget {
       _DriverVerificationDetailPageState();
 }
 
-class _DriverVerificationDetailPageState
-    extends State<DriverVerificationDetailPage> {
+class _DriverVerificationDetailPageState extends State<DriverVerificationDetailPage> {
   static const brandBlue = Color(0xFF1E73FF);
 
   final _svc = DriverVerificationReviewService();
   bool _loading = false;
 
-  // 🔹 Simple default SnackBar (same style as "Phone number updated")
-  void _showSimpleSnack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+  Future<void> _openUrl(String url) async {
+    final u = url.trim();
+    if (u.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No file URL found.')),
+      );
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(u);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to open file.')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to open file.')),
+      );
+    }
+  }
+
+  Future<String?> _askRejectReason() async {
+    final ctrl = TextEditingController();
+    String? errorText;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false, // ✅ force explicit action
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              title: const Text('Reject Application'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: ctrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Enter reject reason',
+                      border: const OutlineInputBorder(),
+                      errorText: errorText, // ✅ inline validation message
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final text = ctrl.text.trim();
+
+                    if (text.isEmpty) {
+                      // ✅ VALIDATION HERE
+                      setState(() {
+                        errorText = 'Reject reason cannot be empty.';
+                      });
+                      return;
+                    }
+
+                    Navigator.pop(dialogCtx, text);
+                  },
+                  child: const Text('Reject'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    try {
-      if (url.trim().isEmpty) return;
-      final uri = Uri.parse(url);
-
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok) _showSimpleSnack('Failed to open file.');
-    } catch (_) {
-      _showSimpleSnack('Failed to open file.');
-    }
-  }
 
   Future<void> _approve() async {
     if (_loading) return;
@@ -55,48 +115,25 @@ class _DriverVerificationDetailPageState
       final adminUid = FirebaseAuth.instance.currentUser?.uid;
       if (adminUid == null) throw Exception('Not signed in.');
 
-      await _svc.approve(
-        staffId: widget.staffId,
-        reviewerUid: adminUid,
-      );
+      await _svc.approve(staffId: widget.staffId, reviewerUid: adminUid);
 
-      _showSimpleSnack('Application approved successfully!');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Application approved')),
+      );
     } catch (e) {
-      _showSimpleSnack(e.toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Approve failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _reject() async {
-    final ctrl = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Reject Application'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Enter reject reason',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('Reject'),
-          ),
-        ],
-      ),
-    );
-
-    final r = (reason ?? '').trim();
-    if (r.isEmpty) return;
+    final reason = await _askRejectReason();
+    if (reason == null) return;
 
     if (_loading) return;
     setState(() => _loading = true);
@@ -108,12 +145,18 @@ class _DriverVerificationDetailPageState
       await _svc.reject(
         staffId: widget.staffId,
         reviewerUid: adminUid,
-        reason: r,
+        reason: reason,
       );
 
-      _showSimpleSnack('Application rejected successfully!');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Application rejected')),
+      );
     } catch (e) {
-      _showSimpleSnack(e.toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reject failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -124,13 +167,14 @@ class _DriverVerificationDetailPageState
 
     return SafeArea(
       top: false,
-      child: Padding(
+      child: Container(
+        color: Colors.white,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
         child: Row(
           children: [
             Expanded(
               child: ElevatedButton(
-                onPressed: (_loading || !canReview) ? null : _reject,
+                onPressed: _loading ? null : _reject,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFEBEE),
                   foregroundColor: const Color(0xFFC62828),
@@ -151,7 +195,7 @@ class _DriverVerificationDetailPageState
             const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton(
-                onPressed: (_loading || !canReview) ? null : _approve,
+                onPressed: _loading ? null : _approve,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE8F5E9),
                   foregroundColor: const Color(0xFF2E7D32),
@@ -209,48 +253,65 @@ class _DriverVerificationDetailPageState
           }
 
           final p = app.profile;
+          final canReview = p.status == 'pending';
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+          final vehicleModel =
+          p.vehicleModel.trim().isEmpty ? '-' : p.vehicleModel.trim();
+
+          final lastReason = (p.lastRejectReason ?? '').trim();
+          final currentRejectReason = (p.rejectReason ?? '').trim();
+
+          return Stack(
             children: [
-              VehicleAndDriverStatusCard(
-                vehicleModel: p.model.isEmpty ? '-' : p.model,
-                status: p.status,
-              ),
-              const SizedBox(height: 12),
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+                children: [
+                  VehicleAndDriverStatusCard(
+                    vehicleModel: vehicleModel,
+                    status: p.status,
+                  ),
+                  const SizedBox(height: 12),
 
-              DvInfoCard(
-                title: 'Submitted Details',
-                rows: [
-                  DvInfoRow(label: 'Staff ID', value: app.staffId),
-                  DvInfoRow(label: 'Vehicle', value: p.model),
-                  DvInfoRow(label: 'Plate', value: p.plateNumber),
-                  DvInfoRow(label: 'Color', value: p.color),
+                  DvInfoCard(
+                    title: 'Submitted Details',
+                    rows: [
+                      DvInfoRow(label: 'Staff ID', value: app.staffId),
+                      DvInfoRow(label: 'Vehicle', value: vehicleModel),
+                      DvInfoRow(label: 'Plate', value: p.plateNumber),
+                      DvInfoRow(label: 'Color', value: p.color),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  DvFilesCard(
+                    vehicleUrl: p.vehicleImageUrl,
+                    licenseUrl: p.licensePdfUrl,
+                    insuranceUrl: p.insurancePdfUrl,
+                    onOpen: _openUrl,
+                  ),
+
+                  // rejected: show current reject reason
+                  if (p.status == 'rejected' && currentRejectReason.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DvRejectCard(reason: currentRejectReason),
+                  ],
+
+                  // pending after reapply: show previous reject reason
+                  if (p.status == 'pending' && lastReason.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DvRejectCard(reason: 'Previous reject reason: $lastReason'),
+                  ],
                 ],
               ),
-              const SizedBox(height: 12),
 
-              DvFilesCard(
-                vehicleUrl: p.vehicleImageUrl,
-                licenseUrl: p.licensePdfUrl,
-                insuranceUrl: p.insurancePdfUrl,
-                onOpen: _openUrl,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _bottomActions(canReview: canReview),
               ),
-
-              if (p.status == 'rejected' &&
-                  (p.rejectReason ?? '').trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                DvRejectCard(reason: p.rejectReason!.trim()),
-              ],
             ],
           );
-        },
-      ),
-      bottomNavigationBar: StreamBuilder<DriverVerificationApplication?>(
-        stream: _svc.streamApplication(widget.staffId),
-        builder: (context, snap) {
-          final canReview = snap.data?.profile.status == 'pending';
-          return _bottomActions(canReview: canReview);
         },
       ),
     );

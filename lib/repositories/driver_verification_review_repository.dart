@@ -9,10 +9,9 @@ class DriverVerificationReviewRepository {
   CollectionReference<Map<String, dynamic>> get _users =>
       _db.collection('users');
 
-  // ---- RAW list stream ----
   Stream<QuerySnapshot<Map<String, dynamic>>> streamListRaw({
-    required String status,      // pending/approved/rejected/all
-    required bool descending,    // true = latest first
+    required String status,
+    required bool descending,
   }) {
     Query<Map<String, dynamic>> q = _verifications;
 
@@ -20,64 +19,91 @@ class DriverVerificationReviewRepository {
       q = q.where('verification.status', isEqualTo: status);
     }
 
-    // ✅ server sort
-    q = q.orderBy('createdAt', descending: descending);
-
+    q = q.orderBy('updatedAt', descending: descending);
     return q.snapshots();
   }
 
-  // ---- single doc stream ----
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamByStaffIdRaw(String staffId) {
-    return _verifications.doc(staffId).snapshots();
+    return _verifications.doc(staffId.trim()).snapshots();
   }
 
-  // ---- review action ----
   Future<void> reviewApplicationRaw({
     required String staffId,
-    required String decision,     // approved | rejected
-    required String reviewerUid,  // admin uid
+    required String decision, // approved | rejected
+    required String reviewerUid,
     String? rejectReason,
   }) async {
-    final vRef = _verifications.doc(staffId);
+    final staffIdTrim = staffId.trim();
+    if (staffIdTrim.isEmpty) throw Exception('Missing staffId.');
+
+    final vRef = _verifications.doc(staffIdTrim);
 
     await _db.runTransaction((tx) async {
-      final snap = await tx.get(vRef);
-      if (!snap.exists) throw Exception('Application not found.');
+      final vSnap = await tx.get(vRef);
+      if (!vSnap.exists) throw Exception('Application not found.');
 
-      final data = snap.data()!;
-      final uid = (data['uid'] ?? '').toString();
+      final data = vSnap.data() ?? {};
+      final uid = (data['uid'] ?? '').toString().trim();
       if (uid.isEmpty) throw Exception('Missing uid in verification doc.');
 
-      if (decision == 'rejected') {
-        final reason = (rejectReason ?? '').trim();
-        if (reason.isEmpty) throw Exception('Reject reason is required.');
+      final now = FieldValue.serverTimestamp();
+
+      if (decision == 'approved') {
+        tx.update(vRef, {
+          'verification.status': 'approved',
+          'verification.approvedBy': reviewerUid,
+          'verification.approvedAt': now,
+
+          // clear reject fields
+          'verification.rejectReason': FieldValue.delete(),
+          'verification.reviewedBy': FieldValue.delete(),
+          'verification.reviewedAt': FieldValue.delete(),
+
+          'updatedAt': now,
+        });
+
+        // sync user
+        tx.update(_users.doc(uid), {
+          'driverStatus': 'approved',
+          'updatedAt': now,
+        });
+
+        return;
       }
 
-      tx.update(vRef, {
-        'verification.status': decision,
-        'verification.reviewedBy': reviewerUid,
-        'verification.reviewedAt': FieldValue.serverTimestamp(),
+      if (decision == 'rejected') {
+        final r = (rejectReason ?? '').trim();
+        if (r.isEmpty) throw Exception('Reject reason required.');
 
-        if (decision == 'approved') ...{
-          'verification.rejectReason': FieldValue.delete(),
-          'verification.approvedBy': reviewerUid,
-          'verification.approvedAt': FieldValue.serverTimestamp(),
-        },
+        tx.update(vRef, {
+          'verification.status': 'rejected',
 
-        if (decision == 'rejected') ...{
-          'verification.rejectReason': rejectReason!.trim(),
+          // ✅ current reject reason (for rejected state)
+          'verification.rejectReason': r,
+
+          // ✅ IMPORTANT: keep latest reject reason forever
+          'verification.lastRejectReason': r,
+
+          'verification.reviewedBy': reviewerUid,
+          'verification.reviewedAt': now,
+
+          // clear approve fields
           'verification.approvedBy': FieldValue.delete(),
           'verification.approvedAt': FieldValue.delete(),
-        },
 
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+          'updatedAt': now,
+        });
 
-      // ✅ this needs USERS rules for admin (we allowed only driverStatus + updatedAt)
-      tx.update(_users.doc(uid), {
-        'driverStatus': decision,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+        // sync user
+        tx.update(_users.doc(uid), {
+          'driverStatus': 'rejected',
+          'updatedAt': now,
+        });
+
+        return;
+      }
+
+      throw Exception('Unknown decision: $decision');
     });
   }
 }

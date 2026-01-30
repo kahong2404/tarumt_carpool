@@ -18,6 +18,7 @@ class DriverVerificationListTile extends StatelessWidget {
         return const Color(0xFF2E7D32);
       case 'rejected':
         return const Color(0xFFC62828);
+      case 'pending':
       default:
         return const Color(0xFFF57F17);
     }
@@ -31,6 +32,7 @@ class DriverVerificationListTile extends StatelessWidget {
         return 'Approved';
       case 'rejected':
         return 'Rejected';
+      case 'pending':
       default:
         return 'Pending';
     }
@@ -53,7 +55,10 @@ class DriverVerificationListTile extends StatelessWidget {
   }
 
   String _monthName(int m) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan','Feb','Mar','Apr','May','Jun',
+      'Jul','Aug','Sep','Oct','Nov','Dec'
+    ];
     return months[(m - 1).clamp(0, 11)];
   }
 
@@ -63,8 +68,11 @@ class DriverVerificationListTile extends StatelessWidget {
     final status = p.status;
     final c = _statusColor(status);
 
-    // If you don't have name in doc, show vehicle model (like placeholder)
-    final title = (p.model.isNotEmpty) ? p.model : 'Driver Application';
+    // ✅ updated field name
+    final title = (p.vehicleModel.isNotEmpty) ? p.vehicleModel : 'Driver Application';
+
+    // ✅ updated createdAt field: prefer submittedAt, fallback updatedAt
+    final ts = app.submittedAt ?? app.updatedAt;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -113,7 +121,7 @@ class DriverVerificationListTile extends StatelessWidget {
           const SizedBox(height: 6),
 
           Text(
-            _formatDateTime(app.createdAt),
+            _formatDateTime(ts),
             style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
           ),
 

@@ -7,50 +7,68 @@ class DriverVerificationRepository {
   CollectionReference<Map<String, dynamic>> get _verifications =>
       _db.collection('driver_verifications');
 
-  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
 
-  /// staffId is docId (your choice)
-  Stream<Map<String, dynamic>?> streamMyVerificationByStaffId(String staffId) {
-    return _verifications.doc(staffId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return doc.data();
-    });
+  Stream<Map<String, dynamic>?> streamByStaffId(String staffId) {
+    return _verifications.doc(staffId.trim()).snapshots().map((d) => d.data());
   }
 
-  /// Submit or Reapply:
-  /// - Always sets status to pending
-  /// - Clears rejectReason/approvedBy/approvedAt so old admin result won't remain
-  Future<void> submit({
+  Future<Map<String, dynamic>?> getByStaffId(String staffId) async {
+    final doc = await _verifications.doc(staffId.trim()).get();
+    if (!doc.exists) return null;
+    return doc.data();
+  }
+
+  Future<void> submitPending({
     required String uid,
     required String staffId,
     required DriverVerificationProfile profile,
   }) async {
-    final ref = _verifications.doc(staffId);
+    final staffIdTrim = staffId.trim();
+    if (staffIdTrim.isEmpty) throw Exception('Missing staffId.');
 
-    await ref.set({
-      ...profile.toMapForSubmit(),
+    final vRef = _verifications.doc(staffIdTrim);
+    final uRef = _users.doc(uid);
 
-      // 🔐 reference fields
-      'uid': uid,
-      'staffId': staffId,
+    await _db.runTransaction((tx) async {
+      final vSnap = await tx.get(vRef);
 
-      // 🕒 timestamps
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      // ✅ preserve latest reject reason (prefer lastRejectReason, fallback to rejectReason)
+      String? latestReason;
+      if (vSnap.exists) {
+        final old = vSnap.data() ?? {};
+        final ver = Map<String, dynamic>.from(old['verification'] ?? {});
+        final last = (ver['lastRejectReason'] ?? '').toString().trim();
+        final cur = (ver['rejectReason'] ?? '').toString().trim();
 
-      // ✅ IMPORTANT: clear old reject/approval fields on re-submit
-      'verification': {
-        'status': 'pending',
-        'rejectReason': FieldValue.delete(),
-        'approvedBy': FieldValue.delete(),
-        'approvedAt': FieldValue.delete(),
-      },
-    }, SetOptions(merge: true));
+        if (last.isNotEmpty) {
+          latestReason = last;
+        } else if (cur.isNotEmpty) {
+          latestReason = cur;
+        }
+      }
 
-    // optional: keep users driverStatus synced
-    await _users.doc(uid).update({
-      'driverStatus': 'pending',
-      'updatedAt': FieldValue.serverTimestamp(),
+      tx.set(
+        vRef,
+        {
+          'uid': uid,
+          'staffId': staffIdTrim,
+          if (!vSnap.exists) 'submittedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+
+          ...profile.toMapForSubmitPending(),
+
+          // ✅ keep it even after resubmit
+          if (latestReason != null) 'verification.lastRejectReason': latestReason,
+        },
+        SetOptions(merge: true),
+      );
+
+      tx.update(uRef, {
+        'driverStatus': 'pending',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 }

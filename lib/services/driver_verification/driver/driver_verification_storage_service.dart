@@ -11,20 +11,15 @@ class DriverVerificationStorageService {
   Future<String> uploadVehicleImage({
     required String staffId,
     required Uint8List bytes,
-    required String contentType, // image/jpeg or image/png
+    required String contentType,
   }) async {
-    // keep extension consistent with contentType
     final filename = contentType.contains('png') ? 'vehicle.png' : 'vehicle.jpg';
     final ref = _ref(staffId, filename);
 
     final task = await ref.putData(
       bytes,
-      SettableMetadata(
-        contentType: contentType,
-        cacheControl: 'public,max-age=3600',
-      ),
+      SettableMetadata(contentType: contentType),
     );
-
     return task.ref.getDownloadURL();
   }
 
@@ -33,15 +28,10 @@ class DriverVerificationStorageService {
     required Uint8List bytes,
   }) async {
     final ref = _ref(staffId, 'license.pdf');
-
     final task = await ref.putData(
       bytes,
-      SettableMetadata(
-        contentType: 'application/pdf',
-        cacheControl: 'public,max-age=3600',
-      ),
+      SettableMetadata(contentType: 'application/pdf'),
     );
-
     return task.ref.getDownloadURL();
   }
 
@@ -50,15 +40,10 @@ class DriverVerificationStorageService {
     required Uint8List bytes,
   }) async {
     final ref = _ref(staffId, 'insurance.pdf');
-
     final task = await ref.putData(
       bytes,
-      SettableMetadata(
-        contentType: 'application/pdf',
-        cacheControl: 'public,max-age=3600',
-      ),
+      SettableMetadata(contentType: 'application/pdf'),
     );
-
     return task.ref.getDownloadURL();
   }
 }

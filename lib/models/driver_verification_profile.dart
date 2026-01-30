@@ -1,21 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DriverVerificationProfile {
-  final String model;
+  final String vehicleModel;
   final String plateNumber;
   final String color;
 
-  final String vehicleImageUrl;   // image url
-  final String licensePdfUrl;     // pdf url
-  final String insurancePdfUrl;   // pdf url
+  final String vehicleImageUrl;
+  final String licensePdfUrl;
+  final String insurancePdfUrl;
 
-  final String status;            // not_applied | pending | approved | rejected
+  // not_applied | pending | approved | rejected
+  final String status;
+
+  /// reject reason for CURRENT rejected state
   final String? rejectReason;
+
+  /// ✅ keep the latest reject reason even after reapply (pending)
+  final String? lastRejectReason;
+
+  final String? reviewedBy;
+  final Timestamp? reviewedAt;
+
   final String? approvedBy;
   final Timestamp? approvedAt;
 
-  DriverVerificationProfile({
-    required this.model,
+  const DriverVerificationProfile({
+    required this.vehicleModel,
     required this.plateNumber,
     required this.color,
     required this.vehicleImageUrl,
@@ -23,29 +33,44 @@ class DriverVerificationProfile {
     required this.insurancePdfUrl,
     required this.status,
     this.rejectReason,
+    this.lastRejectReason,
+    this.reviewedBy,
+    this.reviewedAt,
     this.approvedBy,
     this.approvedAt,
   });
 
-  Map<String, dynamic> toMapForSubmit() {
+  /// For submit/reapply:
+  /// - sets status pending
+  /// - clears current reject/approval info
+  /// - DO NOT delete lastRejectReason here
+  Map<String, dynamic> toMapForSubmitPending() {
     return {
       'vehicle': {
-        'model': model,
-        'plateNumber': plateNumber,
-        'color': color,
-        'vehicleImageUrl': vehicleImageUrl,
+        'model': vehicleModel.trim(),
+        'plateNumber': plateNumber.trim(),
+        'color': color.trim(),
+        'vehicleImageUrl': vehicleImageUrl.trim(),
       },
       'license': {
-        'licensePdfUrl': licensePdfUrl,
+        'licensePdfUrl': licensePdfUrl.trim(),
       },
       'insurance': {
-        'insurancePdfUrl': insurancePdfUrl,
+        'insurancePdfUrl': insurancePdfUrl.trim(),
       },
       'verification': {
-        'status': status,
-        'rejectReason': rejectReason,
-        'approvedBy': approvedBy,
-        'approvedAt': approvedAt,
+        'status': 'pending',
+
+        // clear current rejection result
+        'rejectReason': FieldValue.delete(),
+        'reviewedBy': FieldValue.delete(),
+        'reviewedAt': FieldValue.delete(),
+
+        // clear approval result
+        'approvedBy': FieldValue.delete(),
+        'approvedAt': FieldValue.delete(),
+
+        // ✅ keep lastRejectReason (do nothing)
       },
     };
   }
@@ -54,19 +79,38 @@ class DriverVerificationProfile {
     final vehicle = Map<String, dynamic>.from(map['vehicle'] ?? {});
     final license = Map<String, dynamic>.from(map['license'] ?? {});
     final insurance = Map<String, dynamic>.from(map['insurance'] ?? {});
-    final verification = Map<String, dynamic>.from(map['verification'] ?? {});
+    final ver = Map<String, dynamic>.from(map['verification'] ?? {});
 
     return DriverVerificationProfile(
-      model: (vehicle['model'] ?? '').toString(),
+      vehicleModel: (vehicle['model'] ?? '').toString(),
       plateNumber: (vehicle['plateNumber'] ?? '').toString(),
       color: (vehicle['color'] ?? '').toString(),
       vehicleImageUrl: (vehicle['vehicleImageUrl'] ?? '').toString(),
       licensePdfUrl: (license['licensePdfUrl'] ?? '').toString(),
       insurancePdfUrl: (insurance['insurancePdfUrl'] ?? '').toString(),
-      status: (verification['status'] ?? 'not_applied').toString(),
-      rejectReason: verification['rejectReason']?.toString(),
-      approvedBy: verification['approvedBy']?.toString(),
-      approvedAt: verification['approvedAt'] as Timestamp?,
+
+      status: (ver['status'] ?? 'not_applied').toString(),
+
+      rejectReason: ver['rejectReason']?.toString(),
+      lastRejectReason: ver['lastRejectReason']?.toString(),
+
+      reviewedBy: ver['reviewedBy']?.toString(),
+      reviewedAt: ver['reviewedAt'] as Timestamp?,
+
+      approvedBy: ver['approvedBy']?.toString(),
+      approvedAt: ver['approvedAt'] as Timestamp?,
+    );
+  }
+
+  static DriverVerificationProfile empty() {
+    return const DriverVerificationProfile(
+      vehicleModel: 'No vehicle submitted',
+      plateNumber: '-',
+      color: '-',
+      vehicleImageUrl: '',
+      licensePdfUrl: '',
+      insurancePdfUrl: '',
+      status: 'not_applied',
     );
   }
 }

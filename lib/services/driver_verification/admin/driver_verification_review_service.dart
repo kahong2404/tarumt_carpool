@@ -23,7 +23,6 @@ class DriverVerificationReviewService {
 
   Stream<DriverVerificationApplication?> streamApplication(String staffId) {
     return _repo.streamByStaffIdRaw(staffId).map((doc) {
-      // ✅ IMPORTANT: even "not found" should return NULL (so UI can stop loading)
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;
@@ -35,7 +34,10 @@ class DriverVerificationReviewService {
     });
   }
 
-  Future<void> approve({required String staffId, required String reviewerUid}) {
+  Future<void> approve({
+    required String staffId,
+    required String reviewerUid,
+  }) {
     return _repo.reviewApplicationRaw(
       staffId: staffId,
       decision: 'approved',

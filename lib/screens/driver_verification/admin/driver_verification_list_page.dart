@@ -10,7 +10,8 @@ class DriverVerificationListPage extends StatefulWidget {
   const DriverVerificationListPage({super.key});
 
   @override
-  State<DriverVerificationListPage> createState() => _DriverVerificationListPageState();
+  State<DriverVerificationListPage> createState() =>
+      _DriverVerificationListPageState();
 }
 
 class _DriverVerificationListPageState extends State<DriverVerificationListPage> {
@@ -19,8 +20,8 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
   final _svc = DriverVerificationReviewService();
   final _searchCtrl = TextEditingController();
 
-  String _status = 'all';          // ✅ default is ALL
-  bool _descending = true;         // latest first
+  String _status = 'all'; // all/pending/approved/rejected
+  bool _descending = true; // latest first
   String _searchStaffId = '';
 
   @override
@@ -57,7 +58,6 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       child: Column(
         children: [
-          // search
           Row(
             children: [
               Expanded(
@@ -87,8 +87,6 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
             ],
           ),
           const SizedBox(height: 10),
-
-          // status + sort dropdown
           Row(
             children: [
               Expanded(
@@ -135,19 +133,13 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
     return StreamBuilder<List<DriverVerificationApplication>>(
       stream: _svc.streamApplications(status: _status, descending: _descending),
       builder: (context, snap) {
-        if (snap.hasError) {
-          // IMPORTANT: index error will show here
-          return _errorBox(snap.error.toString());
-        }
-
+        if (snap.hasError) return _errorBox(snap.error.toString());
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         final items = snap.data ?? [];
-        if (items.isEmpty) {
-          return const Center(child: Text('No applications.'));
-        }
+        if (items.isEmpty) return const Center(child: Text('No applications.'));
 
         return ListView.separated(
           padding: const EdgeInsets.all(12),
@@ -171,21 +163,14 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
     return StreamBuilder<DriverVerificationApplication?>(
       stream: _svc.streamApplication(staffId),
       builder: (context, snap) {
-        if (snap.hasError) {
-          return _errorBox(snap.error.toString());
-        }
-
+        if (snap.hasError) return _errorBox(snap.error.toString());
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // ✅ FIX: wrong id returns NULL -> show text, no infinite loading
         final app = snap.data;
-        if (app == null) {
-          return const Center(child: Text('No application found.'));
-        }
+        if (app == null) return const Center(child: Text('No application found.'));
 
-        // apply status filter in search mode too
         if (_status != 'all' && app.profile.status != _status) {
           return const Center(child: Text('No application matches status filter.'));
         }
@@ -204,10 +189,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Text(
-          'Error: $msg',
-          style: const TextStyle(color: Colors.red),
-        ),
+        child: Text('Error: $msg', style: const TextStyle(color: Colors.red)),
       ),
     );
   }
@@ -256,13 +238,18 @@ class _AdminCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = app.profile;
-    final status = p.status;
+    final status = app.profile.status;
     final c = _statusColor(status);
 
-    final dt = app.createdAt?.toDate().toLocal();
+    // ✅ CORRECT DATE: prefer updatedAt (admin reviewed), fallback submittedAt (first submit)
+    final dt = (app.updatedAt ?? app.submittedAt)?.toDate().toLocal();
     final dateText = dt == null ? '-' : DateFormat('dd MMM yyyy').format(dt);
     final timeText = dt == null ? '-' : DateFormat('hh:mm a').format(dt);
+
+    // ✅ CORRECT FIELD: DriverVerificationProfile uses vehicleModel
+    final vehicleModel = app.profile.vehicleModel.trim().isEmpty
+        ? 'Unknown Vehicle'
+        : app.profile.vehicleModel.trim();
 
     return InkWell(
       onTap: onTap,
@@ -284,16 +271,28 @@ class _AdminCard extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  app.staffId,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 6),
-                Text(dateText, style: const TextStyle(color: Colors.black54)),
-                const SizedBox(height: 2),
-                Text(timeText, style: const TextStyle(color: Colors.black54)),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vehicleModel,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Staff ID: ${app.staffId}',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$dateText • $timeText',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                ],
+              ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -313,7 +312,9 @@ class _AdminCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1E73FF),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: const Text('Review'),
             ),

@@ -7,7 +7,7 @@ import '../../../repositories/user_repository.dart';
 class DriverVerificationService {
   final _auth = FirebaseAuth.instance;
   final _userRepo = UserRepository();
-  final _dvRepo = DriverVerificationRepository();
+  final _repo = DriverVerificationRepository();
 
   String get myUid {
     final uid = _auth.currentUser?.uid;
@@ -23,18 +23,14 @@ class DriverVerificationService {
     return staffId.trim();
   }
 
-  /// Stream my verification document (staffId as docId)
   Stream<Map<String, dynamic>?> streamMyVerification() async* {
     final staffId = await getMyStaffIdOrThrow();
-    yield* _dvRepo.streamMyVerificationByStaffId(staffId);
+    yield* _repo.streamByStaffId(staffId);
   }
 
-  /// Submit (and reapply) -> always pending (your repo clears reject/approval fields)
-  Future<void> submitPending({
-    required DriverVerificationProfile profile,
-  }) async {
+  Future<void> submitPending({required DriverVerificationProfile profile}) async {
     final uid = myUid;
     final staffId = await getMyStaffIdOrThrow();
-    await _dvRepo.submit(uid: uid, staffId: staffId, profile: profile);
+    await _repo.submitPending(uid: uid, staffId: staffId, profile: profile);
   }
 }
