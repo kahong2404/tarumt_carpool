@@ -9,9 +9,9 @@ class RiderRequestRepository {
       _db.collection('riderRequests');
 
   Future<String> createRiderRequest({
-    required String originAddress,
+    required String pickupAddress,
     required String destinationAddress,
-    required GeoPoint originGeo,
+    required GeoPoint pickupGeo,
     required GeoPoint destinationGeo,
     required String rideDate,
     required String rideTime,
@@ -25,21 +25,57 @@ class RiderRequestRepository {
 
     await doc.set({
       'requestId': requestId,
-      'originAddress': originAddress.trim(),
-      'destinationAddress': destinationAddress.trim(),
 
-      // ✅ GeoPoints
-      'originGeo': originGeo,
+      // standardized fields
+      'pickupAddress': pickupAddress.trim(),
+      'destinationAddress': destinationAddress.trim(),
+      'pickupGeo': pickupGeo,
       'destinationGeo': destinationGeo,
 
       'rideDate': rideDate,
       'rideTime': rideTime,
       'seatRequested': seatRequested,
-      'requestStatus': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
+
+      // 🔒 locked status model
+      'status': 'waiting',
+      'activeRideId': null,
+
       'riderId': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     return requestId;
+  }
+
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamRequest(String requestId) {
+    return _requests.doc(requestId).snapshots();
+  }
+
+  /// Rider cancels ONLY while waiting
+  Future<void> cancelRequestWhileWaiting(String requestId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not logged in');
+
+    final ref = _requests.doc(requestId);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw Exception('Request not found');
+
+      final d = snap.data()!;
+      if (d['riderId'] != user.uid) throw Exception('Not your request');
+
+      final status = (d['status'] ?? '').toString();
+      if (status != 'waiting') {
+        throw Exception('Cannot cancel after driver accepted');
+      }
+
+      tx.update(ref, {
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
   }
 }

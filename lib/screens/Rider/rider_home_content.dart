@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
-import 'package:tarumt_carpool/services/google_direction_service.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart';
 import 'package:tarumt_carpool/utils/geo_utils.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
 import 'package:tarumt_carpool/widgets/seat_request_dialog.dart';
@@ -43,21 +43,21 @@ class RiderHomeContent extends StatelessWidget {
     );
     if (dropoff == null) return;
 
-    final originAddress = (pickup["address"] ?? "").toString().trim();
+    final pickupAddress = (pickup["address"] ?? "").toString().trim();
     final destinationAddress = (dropoff["address"] ?? "").toString().trim();
     // ===== KL-ONLY VALIDATION =====
     const klCenterLat = 3.2149;   // TARUMT / KL center
     const klCenterLng = 101.7291;
     const serviceRadiusKm = 40.0; // Klang Valley range
 
-    final pickupKmFromKL = haversineKm(
+    final pickupKmFromKL = distanceKm(
       lat1: klCenterLat,
       lon1: klCenterLng,
       lat2: pickup["lat"],
       lon2: pickup["lng"],
     );
 
-    final dropoffKmFromKL = haversineKm(
+    final dropoffKmFromKL = distanceKm(
       lat1: klCenterLat,
       lon1: klCenterLng,
       lat2: dropoff["lat"],
@@ -96,14 +96,13 @@ class RiderHomeContent extends StatelessWidget {
 
     try {
       final requestId = await repo.createRiderRequest(
-        originAddress: originAddress,
+        pickupAddress: pickupAddress,
         destinationAddress: destinationAddress,
         rideDate: rideDate,
         rideTime: rideTime,
         seatRequested: seatRequested,
 
-        // ✅ GeoPoint version
-        originGeo: GeoPoint(
+        pickupGeo: GeoPoint(
           (pickup["lat"] as num).toDouble(),
           (pickup["lng"] as num).toDouble(),
         ),
@@ -114,6 +113,7 @@ class RiderHomeContent extends StatelessWidget {
       );
 
 
+
       if (!context.mounted) return;
 
       // optional: show snack
@@ -121,13 +121,14 @@ class RiderHomeContent extends StatelessWidget {
         SnackBar(content: Text('Request created ($seatRequested seat)')),
       );
 
-// // ✅ navigate to matching map
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (_) => MatchMapScreen(requestId: requestId),
-//         ),
-//       );
+      if (!context.mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RiderWaitingMapScreen(requestId: requestId),
+        ),
+      );
 
     } catch (e) {
       if (!context.mounted) return;

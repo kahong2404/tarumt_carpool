@@ -1,6 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/repositories/ride_repository.dart';
 import 'package:tarumt_carpool/screens/Driver/driver_home_page.dart';
+import 'package:tarumt_carpool/screens/Driver/driver_my_ride_screen.dart';
+import 'package:tarumt_carpool/screens/Driver/driver_trip_map_screen.dart';
 import '../profile/dashboard/driver_profile_dashboard.dart';
+import 'package:tarumt_carpool/screens/Driver/driver_request_list_screen.dart';
+
 class DriverTabScaffold extends StatefulWidget {
   const DriverTabScaffold({super.key});
 
@@ -13,6 +19,11 @@ class _DriverTabScaffoldState extends State<DriverTabScaffold> {
 
   int _index = 0;
   final PageController _pageCtrl = PageController(initialPage: 0);
+  final _auth = FirebaseAuth.instance;
+  final _rideRepo = RideRepository();
+
+  bool _autoResumeChecked = false;
+  bool _autoResumeNavigated = false;
 
   @override
   void dispose() {
@@ -30,6 +41,36 @@ class _DriverTabScaffoldState extends State<DriverTabScaffold> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoResumeIfNeeded());
+  }
+
+  Future<void> _autoResumeIfNeeded() async {
+    if (_autoResumeChecked || _autoResumeNavigated) return;
+    _autoResumeChecked = true;
+
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final rideId = await _rideRepo.getDriverActiveRideIdOnce(uid);
+      if (!mounted) return;
+      if (rideId == null) return;
+
+      _autoResumeNavigated = true;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DriverTripMapScreen(rideId: rideId),
+        ),
+      );
+    } catch (_) {
+      // ignore - do not block app launch
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -39,9 +80,9 @@ class _DriverTabScaffoldState extends State<DriverTabScaffold> {
           onPageChanged: (i) => setState(() => _index = i),
           children: [
             const DriverHomePage(),                 // ✅ can be const
-            const _PlaceholderTab(title: 'My Rides'),
-            const _PlaceholderTab(title: 'Notifications'),
-            DriverProfileDashboard(),               // ✅ NOT const
+            DriverMyRidesPage(),
+            DriverRequestListScreen(),
+            DriverProfileDashboard(),
           ],
         ),
       ),

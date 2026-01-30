@@ -1,5 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/repositories/ride_repository.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_home_content.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_my_ride_screen.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_trip_map_screen.dart';
 import '../profile/dashboard/rider_profile_dashboard.dart';
 class RiderTabScaffold extends StatefulWidget {
   const RiderTabScaffold({super.key});
@@ -13,6 +17,11 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
 
   int _index = 0;
   final PageController _pageCtrl = PageController(initialPage: 0);
+  final _auth = FirebaseAuth.instance;
+  final _rideRepo = RideRepository();
+
+  bool _autoResumeChecked = false;
+  bool _autoResumeNavigated = false;
 
   @override
   void dispose() {
@@ -28,6 +37,35 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
       curve: Curves.easeOut,
     );
   }
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoResumeIfNeeded());
+  }
+
+  Future<void> _autoResumeIfNeeded() async {
+    if (_autoResumeChecked || _autoResumeNavigated) return;
+    _autoResumeChecked = true;
+
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final rideId = await _rideRepo.getRiderActiveRideIdOnce(uid);
+      if (!mounted) return;
+      if (rideId == null) return;
+
+      _autoResumeNavigated = true;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RiderTripMapScreen(rideId: rideId),
+        ),
+      );
+    } catch (_) {
+      // ignore - do not block app launch
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +77,7 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
           onPageChanged: (i) => setState(() => _index = i),
           children: [
             const RiderHomeContent(),                // Tab 0
-            const _PlaceholderTab(title: 'My Rides'),// Tab 1
+            RiderMyRidesScreen(),// Tab 1
             const _PlaceholderTab(title: 'Notifications'), // Tab 2
             RiderProfileDashboard(),                 // ✅ Tab 3 (Profile)
           ],
