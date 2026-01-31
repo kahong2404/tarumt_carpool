@@ -50,8 +50,8 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   static const double _maxFare = 50.00;
 
   // Distance gate thresholds (realistic)
-  static const double _arriveRadiusMeters = 500.0;
-  static const double _completeRadiusMeters = 500.0;
+  static const double _arriveRadiusMeters = 99999999999.0;
+  static const double _completeRadiusMeters = 99999999999.0;
 
   double _calcFare(double km) {
     final raw = _baseFare + (_ratePerKm * km);
