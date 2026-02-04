@@ -5,6 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../repositories/ride_repository.dart';
 import 'driver_trip_map_screen.dart';
 
+// ✅ add this import
+import '../reviews/review_view_screen.dart';
+
 class DriverMyRidesPage extends StatelessWidget {
   DriverMyRidesPage({super.key});
 
@@ -92,11 +95,15 @@ class DriverMyRidesPage extends StatelessWidget {
                     final d = doc.data();
                     final rideId = doc.id;
 
+                    final status = (d['rideStatus'] ?? '').toString();
+                    final reviewId = d['reviewId'] as String?;
+                    final canViewReview = status == 'completed' && reviewId != null;
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _RideCard(
                         title: 'Ride',
-                        status: (d['rideStatus'] ?? '').toString(),
+                        status: status,
                         pickup: (d['pickupAddress'] ?? '').toString(),
                         destination: (d['destinationAddress'] ?? '').toString(),
                         primaryButtonText: 'View',
@@ -108,6 +115,19 @@ class DriverMyRidesPage extends StatelessWidget {
                             ),
                           );
                         },
+
+                        // ✅ NEW
+                        secondaryButtonText: canViewReview ? 'View Review' : null,
+                        onSecondary: canViewReview
+                            ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewViewScreen(reviewId: reviewId!),
+                            ),
+                          );
+                        }
+                            : null,
                       ),
                     );
                   }).toList(),
@@ -146,14 +166,21 @@ class _RideCard extends StatelessWidget {
     required this.destination,
     required this.primaryButtonText,
     required this.onPrimary,
+    this.secondaryButtonText,
+    this.onSecondary,
   });
 
   final String title;
   final String status;
   final String pickup;
   final String destination;
+
   final String primaryButtonText;
   final VoidCallback onPrimary;
+
+  // ✅ NEW
+  final String? secondaryButtonText;
+  final VoidCallback? onSecondary;
 
   String _prettyStatus(String s) {
     switch (s) {
@@ -208,19 +235,49 @@ class _RideCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Dropoff: $destination', style: const TextStyle(color: Colors.black87)),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: onPrimary,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E73FF),
+
+          // ✅ TWO buttons row
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: onPrimary,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E73FF),
+                    ),
+                    child: Text(
+                      primaryButtonText,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                primaryButtonText,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-              ),
-            ),
+              if (secondaryButtonText != null && onSecondary != null) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: onSecondary,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: const Color(0xFF1E73FF).withOpacity(0.65)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(
+                        secondaryButtonText!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF1E73FF),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

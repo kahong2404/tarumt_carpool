@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../notifications/notification_list_page.dart';
+import '../../reviews/driver_my_reviews_screen.dart';
 
 import '../../../auth/after_login_router.dart';
 import '../../../repositories/user_repository.dart';
@@ -167,9 +168,14 @@ class DriverProfileDashboard extends StatelessWidget {
                       onTap: () {},
                     ),
                     ProfileActionButton(
-                      label: 'Reviews',
-                      icon: Icons.star_border,
-                      onTap: () {},
+                      label: 'My Reviews',
+                      icon: Icons.star_border_rounded,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => DriverMyReviewsScreen()),
+                        );
+                      },
                     ),
                     ProfileActionButton(
                       label: 'Notifications',

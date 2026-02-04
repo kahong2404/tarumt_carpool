@@ -6,6 +6,7 @@ import '../../../repositories/user_repository.dart';
 import '../../../widgets/profile/profile_header.dart';
 import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
+import '../../reviews/admin_all_driver_ratings_screen.dart';
 
 class AdminProfileDashboard extends StatelessWidget {
   AdminProfileDashboard({super.key});
@@ -62,6 +63,17 @@ class AdminProfileDashboard extends StatelessWidget {
                         );
                       },
                     ),
+                ProfileActionButton(
+                  label: 'Driver Reviews',
+                  icon: Icons.star_border_rounded,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AdminAllDriverRatingsScreen()),
+                    );
+                  },
+                ),
+
 
 
                   ],

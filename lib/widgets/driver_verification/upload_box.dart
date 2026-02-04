@@ -96,7 +96,7 @@ class UploadBox extends StatelessWidget {
       if (hasUrl) {
         final display = (fileName != null && fileName!.trim().isNotEmpty)
             ? fileName!.trim()
-            : 'Open file';
+            : 'Existing uploaded file';
 
         return Row(
           children: [
@@ -113,8 +113,7 @@ class UploadBox extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: canOpen ? brandBlue : Colors.black54,
-                    decoration:
-                    canOpen ? TextDecoration.underline : TextDecoration.none,
+                    decoration: canOpen ? TextDecoration.underline : TextDecoration.none,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -180,22 +179,12 @@ class UploadBox extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
+              children: const [
+                Text(
                   'Preview',
                   style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 6),
-                TextButton.icon(
-                  onPressed: canOpen ? onOpen : null,
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: const Text('View full image'),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    alignment: Alignment.centerLeft,
-                    foregroundColor: brandBlue,
-                  ),
-                ),
+                // ✅ removed "View full image"
               ],
             ),
           ),

@@ -5,6 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../repositories/ride_repository.dart';
 import 'rider_trip_map_screen.dart';
 
+// ✅ Review screens
+import '../reviews/rider_submit_review_screen.dart';
+import '../reviews/review_view_screen.dart';
+
 class RiderMyRidesScreen extends StatelessWidget {
   RiderMyRidesScreen({super.key});
 
@@ -97,13 +101,24 @@ class RiderMyRidesScreen extends StatelessWidget {
                     final d = doc.data();
                     final rideId = doc.id;
 
+                    final status = (d['rideStatus'] ?? '').toString();
+
+                    // ✅ safe reads from Firestore
+                    final hasReview = (d['hasReview'] == true);
+                    final reviewId = (d['reviewId'] ?? '').toString().trim();
+
+                    final canWrite = status == 'completed' && !hasReview;
+                    final canViewReview = status == 'completed' && reviewId.isNotEmpty;
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _RideCard(
                         title: 'Ride',
-                        status: (d['rideStatus'] ?? '').toString(),
+                        status: status,
                         pickup: (d['pickupAddress'] ?? '').toString(),
                         destination: (d['destinationAddress'] ?? '').toString(),
+
+                        // primary = always view trip
                         primaryButtonText: 'View',
                         onPrimary: () {
                           Navigator.push(
@@ -111,11 +126,36 @@ class RiderMyRidesScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (_) => RiderTripMapScreen(
                                 rideId: rideId,
-                                autoExitOnCompleted: false, // ✅ important!
+                                autoExitOnCompleted: false,
                               ),
                             ),
                           );
                         },
+
+                        // secondary = review logic
+                        secondaryButtonText: canWrite
+                            ? 'Write Review'
+                            : (canViewReview ? 'View Review' : null),
+
+                        onSecondary: canWrite
+                            ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RiderSubmitReviewScreen(rideId: rideId),
+                            ),
+                          );
+                        }
+                            : (canViewReview
+                            ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewViewScreen(reviewId: reviewId),
+                            ),
+                          );
+                        }
+                            : null),
                       ),
                     );
                   }).toList(),
@@ -154,14 +194,21 @@ class _RideCard extends StatelessWidget {
     required this.destination,
     required this.primaryButtonText,
     required this.onPrimary,
+    this.secondaryButtonText,
+    this.onSecondary,
   });
 
   final String title;
   final String status;
   final String pickup;
   final String destination;
+
   final String primaryButtonText;
   final VoidCallback onPrimary;
+
+  // ✅ optional second button
+  final String? secondaryButtonText;
+  final VoidCallback? onSecondary;
 
   String _prettyStatus(String s) {
     switch (s) {
@@ -184,6 +231,8 @@ class _RideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF1E73FF);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -216,19 +265,49 @@ class _RideCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Dropoff: $destination', style: const TextStyle(color: Colors.black87)),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton(
-              onPressed: onPrimary,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E73FF),
+
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: onPrimary,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      primaryButtonText,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                primaryButtonText,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-              ),
-            ),
+              if (secondaryButtonText != null && onSecondary != null) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: onSecondary,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: primary.withOpacity(0.65)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(
+                        secondaryButtonText!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -242,12 +321,14 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF1E73FF);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E73FF).withOpacity(0.10),
+        color: primary.withOpacity(0.10),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFF1E73FF).withOpacity(0.25)),
+        border: Border.all(color: primary.withOpacity(0.25)),
       ),
       child: Text(
         text,

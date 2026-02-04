@@ -13,6 +13,9 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  debugPrint('🔥 Firebase projectId = ${Firebase.app().options.projectId}');
+  debugPrint('🔥 Firebase appId     = ${Firebase.app().options.appId}');
+
   runApp(const MyApp());
 }
 
