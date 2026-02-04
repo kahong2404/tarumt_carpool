@@ -19,7 +19,7 @@ class ReviewService {
   /// - only after ride completed
   /// - only once
   /// - writes: rating_Reviews + rides patch (transaction)
-  Future<String> submitRiderReview({
+  Future<({String reviewId, bool suspicious})> submitRiderReview({
     required String rideId,
     required int ratingScore,
     required String commentText,
@@ -32,14 +32,17 @@ class ReviewService {
     }
 
     final comment = commentText.trim();
-    final mod = ReviewModeration.detect(ratingScore: ratingScore, comment: comment);
-    final suspicious = mod.suspicious;
+
+    final suspicious = ReviewModeration.detectSuspicious(
+      comment: comment,
+    );
+
     final visibility = suspicious ? 'hidden' : 'visible';
+
 
     final rideRef = _repo.rides.doc(rideId);
 
-    return FirebaseFirestore.instance.runTransaction<String>((tx) async {
-      // READ FIRST
+    return FirebaseFirestore.instance.runTransaction((tx) async {
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
@@ -62,7 +65,6 @@ class ReviewService {
         throw Exception('Review already submitted');
       }
 
-      // WRITES
       final reviewRef = _repo.reviews.doc();
       final now = FieldValue.serverTimestamp();
 
@@ -87,7 +89,8 @@ class ReviewService {
         'updatedAt': now,
       });
 
-      return reviewRef.id;
+      return (reviewId: reviewRef.id, suspicious: suspicious);
     });
   }
+
 }

@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/repositories/ride_repository.dart';
 import 'package:tarumt_carpool/screens/Driver/driver_home_page.dart';
-import 'package:tarumt_carpool/screens/Driver/driver_my_ride_screen.dart';
+// import 'package:tarumt_carpool/screens/Driver/driver_my_ride_screen.dart';
 import 'package:tarumt_carpool/screens/Driver/driver_trip_map_screen.dart';
 import '../profile/dashboard/driver_profile_dashboard.dart';
 import 'package:tarumt_carpool/screens/Driver/driver_request_list_screen.dart';
@@ -80,7 +80,7 @@ class _DriverTabScaffoldState extends State<DriverTabScaffold> {
           onPageChanged: (i) => setState(() => _index = i),
           children: [
             const DriverHomePage(),                 // ✅ can be const
-            DriverMyRidesPage(),
+            // DriverMyRidesPage(),
             DriverRequestListScreen(),
             DriverProfileDashboard(),
           ],

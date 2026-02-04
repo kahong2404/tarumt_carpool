@@ -1,8 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/rating_review.dart';
-import '../../repositories/review_repository.dart';
+import 'package:tarumt_carpool/models/rating_review.dart';
+import 'package:tarumt_carpool/repositories/review_repository.dart';
+
+// split review widgets
+import 'package:tarumt_carpool/widgets/reviews/star_row.dart';
+import 'package:tarumt_carpool/widgets/reviews/review_comment_box.dart';
+import 'package:tarumt_carpool/widgets/reviews/center_info_card.dart';
 
 class ReviewViewScreen extends StatelessWidget {
   static const primary = Color(0xFF1E73FF);
@@ -27,12 +32,8 @@ class ReviewViewScreen extends StatelessWidget {
           stream: repo.streamReviewById(reviewId),
           builder: (context, snap) {
             if (snap.hasError) {
-              return _CenterCard(
-                child: Text(
-                  'Error: ${snap.error}',
-                  style: const TextStyle(color: Colors.black54),
-                  textAlign: TextAlign.center,
-                ),
+              return const CenterInfoCard(
+                child: Text('Failed to load review'),
               );
             }
 
@@ -41,172 +42,84 @@ class ReviewViewScreen extends StatelessWidget {
             }
 
             if (!snap.data!.exists) {
-              return const _CenterCard(
-                child: Text(
-                  'Review not found',
-                  style: TextStyle(color: Colors.black54),
-                  textAlign: TextAlign.center,
-                ),
+              return const CenterInfoCard(
+                child: Text('Review not found'),
               );
             }
 
             final r = RatingReview.fromDoc(snap.data!);
 
             if (r.status == 'deleted') {
-              return const _CenterCard(
-                child: Text(
-                  'This review was removed.',
-                  style: TextStyle(color: Colors.black54),
-                  textAlign: TextAlign.center,
-                ),
+              return const CenterInfoCard(
+                child: Text('This review was removed'),
               );
             }
 
             if (r.visibility == 'hidden') {
-              return const _CenterCard(
+              return const CenterInfoCard(
                 child: Text(
-                  'This review is under admin moderation and is currently hidden.\n\nPlease wait until admin approves (Unhide).',
-                  style: TextStyle(color: Colors.black54),
+                  'This review is under moderation.\nPlease wait for admin approval.',
                   textAlign: TextAlign.center,
                 ),
               );
             }
 
-            final dateText = r.createdAt == null ? '' : r.createdAt!.toDate().toString();
+            final dateText =
+                r.createdAt?.toDate().toString() ?? '';
 
             return ListView(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
+              padding: const EdgeInsets.all(14),
               children: [
-                _ReviewCard(
-                  rideId: r.rideId,
-                  stars: r.ratingScore,
-                  comment: r.commentText,
-                  dateText: dateText,
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                        color: Colors.black.withOpacity(0.08),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ride ID: ${r.rideId}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      StarRow(value: r.ratingScore),
+                      const SizedBox(height: 12),
+
+                      ReviewCommentBox(
+                        text: r.commentText,
+                        borderColor: primary.withOpacity(0.35),
+                      ),
+
+                      if (dateText.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          dateText,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  static const primary = Color(0xFF1E73FF);
-
-  final String rideId;
-  final int stars;
-  final String comment;
-  final String dateText;
-
-  const _ReviewCard({
-    required this.rideId,
-    required this.stars,
-    required this.comment,
-    required this.dateText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = comment.trim();
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-            color: Colors.black.withOpacity(0.08),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Ride ID title (like your card title)
-          Text(
-            'Ride ID: $rideId',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-
-          // Stars only (no number)
-          _StarRow(value: stars),
-          const SizedBox(height: 12),
-
-          // Comment box with border (outlined look)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: primary.withOpacity(0.35), width: 1.6),
-            ),
-            child: Text(
-              c.isEmpty ? '-' : c,
-              style: const TextStyle(height: 1.3, color: Colors.black87),
-            ),
-          ),
-
-          // Date/time under textbox
-          if (dateText.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              dateText,
-              style: const TextStyle(
-                color: Colors.black54,
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _StarRow extends StatelessWidget {
-  final int value;
-  const _StarRow({required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final v = value.clamp(0, 5);
-    return Row(
-      children: List.generate(5, (i) {
-        final filled = (i + 1) <= v;
-        return Icon(
-          filled ? Icons.star : Icons.star_border,
-          color: Colors.amber,
-          size: 26,
-        );
-      }),
-    );
-  }
-}
-
-class _CenterCard extends StatelessWidget {
-  final Widget child;
-  const _CenterCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: child,
         ),
       ),
     );

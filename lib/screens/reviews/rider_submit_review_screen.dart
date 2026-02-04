@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/services/review/review_service.dart';
 import 'package:tarumt_carpool/widgets/primary_button.dart';
-import 'package:tarumt_carpool/widgets/reviews/review_widgets.dart';
+
+// split review widgets
+import 'package:tarumt_carpool/widgets/reviews/review_white_card.dart';
+import 'package:tarumt_carpool/widgets/reviews/user_header.dart';
+import 'package:tarumt_carpool/widgets/reviews/star_picker.dart';
 
 class RiderSubmitReviewScreen extends StatefulWidget {
   final String rideId;
@@ -34,44 +38,53 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
   Stream<_DriverHeaderVM> _streamDriverHeader() {
     final rideRef = _db.collection('rides').doc(widget.rideId);
 
-    return rideRef.snapshots().asyncMap((rideSnap) async {
-      if (!rideSnap.exists) {
+    return rideRef.snapshots().asyncMap((snap) async {
+      if (!snap.exists) {
         return const _DriverHeaderVM(name: 'Driver', photoUrl: null);
       }
 
-      final ride = rideSnap.data() ?? <String, dynamic>{};
+      final ride = snap.data() ?? {};
       final driverId = (ride['driverID'] ?? '').toString().trim();
 
       if (driverId.isEmpty) {
         return const _DriverHeaderVM(name: 'Driver', photoUrl: null);
       }
 
-      final userMap = await _userRepo.getUserDocMap(driverId);
-      final name = (userMap?['name'] ?? 'Driver').toString();
-      final photoUrl = userMap?['photoUrl']?.toString();
-
+      final user = await _userRepo.getUserDocMap(driverId);
       return _DriverHeaderVM(
-        name: name,
-        photoUrl: (photoUrl != null && photoUrl.trim().isNotEmpty) ? photoUrl.trim() : null,
+        name: (user?['name'] ?? 'Driver').toString(),
+        photoUrl: (user?['photoUrl'] ?? '').toString().trim().isEmpty
+            ? null
+            : user!['photoUrl'].toString(),
       );
     });
   }
 
   Future<void> _submit() async {
-    final comment = _commentCtrl.text.trim();
-
     setState(() => _loading = true);
+
     try {
-      await _reviewService.submitRiderReview(
+      final result = await _reviewService.submitRiderReview(
         rideId: widget.rideId,
         ratingScore: _stars,
-        commentText: comment,
+        commentText: _commentCtrl.text.trim(),
       );
 
       if (!mounted) return;
+
+      final message = result.suspicious
+          ? 'Review submitted\n'
+          'Some language in your review requires a quick admin check.\n'
+          'Your review will appear once approved.'
+          : 'Review submitted';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review submitted.')),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+        ),
       );
+
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -83,10 +96,10 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       backgroundColor: primary,
       appBar: AppBar(
         title: const Text('Review and Rating'),
@@ -96,7 +109,7 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+          padding: const EdgeInsets.all(16),
           child: ReviewWhiteCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -104,18 +117,23 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
                 StreamBuilder<_DriverHeaderVM>(
                   stream: _streamDriverHeader(),
                   builder: (context, snap) {
-                    final vm = snap.data ?? const _DriverHeaderVM(name: 'Driver', photoUrl: null);
+                    final vm = snap.data ??
+                        const _DriverHeaderVM(
+                          name: 'Driver',
+                          photoUrl: null,
+                        );
                     return UserHeader(name: vm.name, photoUrl: vm.photoUrl);
                   },
                 ),
                 const SizedBox(height: 14),
+
                 StarPicker(
                   value: _stars,
                   onChanged: (v) => setState(() => _stars = v),
-                  centered: true,
-                  size: 28,
                 ),
+
                 const SizedBox(height: 16),
+
                 TextField(
                   controller: _commentCtrl,
                   maxLines: 4,
@@ -123,19 +141,17 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
                     hintText: 'Write your review ...',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: primary, width: 2),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: primary, width: 1.8),
+                      borderSide: const BorderSide(color: primary),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: primary, width: 2.2),
+                      borderSide: const BorderSide(color: primary, width: 2),
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 24),
+
                 PrimaryButton(
                   text: 'Submit Review',
                   loading: _loading,

@@ -1,6 +1,5 @@
 class ReviewModeration {
   static const badWords = <String>[
-    'xxx',
     'idiot',
     'stupid',
     'hate',
@@ -8,25 +7,20 @@ class ReviewModeration {
     'dumb',
   ];
 
-  static ({bool suspicious, String reason}) detect({
-    required int ratingScore,
+  static bool detectSuspicious({
     required String comment,
   }) {
     final t = comment.toLowerCase().trim();
 
-    final hit = badWords.firstWhere(
-          (w) => t.contains(w),
-      orElse: () => '',
-    );
-
-    if (hit.isNotEmpty) {
-      return (suspicious: true, reason: 'offensive_language');
+    // 1️⃣ offensive words
+    for (final w in badWords) {
+      if (t.contains(w)) return true;
     }
 
-    if (ratingScore <= 1 && t.length >= 30) {
-      return (suspicious: true, reason: 'extreme_negative_review');
-    }
+    // 2️⃣ repeated characters (xxx, yyy, zzz, hhhhh)
+    final repeatRegex = RegExp(r'(.)\1{2,}');
+    if (repeatRegex.hasMatch(t)) return true;
 
-    return (suspicious: false, reason: 'clean');
+    return false;
   }
 }
