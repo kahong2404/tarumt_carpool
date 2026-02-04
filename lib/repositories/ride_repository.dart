@@ -1,9 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/ride.dart';
+
 class RideRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static const activeStatuses = [
+    'incoming',
+    'arrived_pickup',
+    'ongoing',
+    'arrived_destination',
+  ];
 
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('riderRequests');
@@ -11,25 +20,39 @@ class RideRepository {
   CollectionReference<Map<String, dynamic>> get _rides => _db.collection('rides');
 
   // ----------------------------
-  // STREAMS
+  // OOP STREAMS (Recommended)
   // ----------------------------
-  Stream<DocumentSnapshot<Map<String, dynamic>>> streamRide(String rideId) {
-    return _rides.doc(rideId).snapshots();
+  Stream<Ride> streamRideModel(String rideId) {
+    return _rides.doc(rideId).snapshots().map((doc) => Ride.fromDoc(doc));
   }
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> streamRideById(String rideId) {
+  Stream<Ride?> streamDriverActiveRideModel(String driverId) {
+    return streamDriverActiveRide(driverId).map((snap) {
+      if (snap.docs.isEmpty) return null;
+      final doc = snap.docs.first;
+      return Ride.fromMap(doc.id, doc.data());
+    });
+  }
+
+  Stream<Ride?> streamRiderActiveRideModel(String riderId) {
+    return streamRiderActiveRide(riderId).map((snap) {
+      if (snap.docs.isEmpty) return null;
+      final doc = snap.docs.first;
+      return Ride.fromMap(doc.id, doc.data());
+    });
+  }
+
+  // ----------------------------
+  // RAW STREAMS (If you still need Map)
+  // ----------------------------
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamRide(String rideId) {
     return _rides.doc(rideId).snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverActiveRide(String driverId) {
     return _rides
         .where('driverID', isEqualTo: driverId)
-        .where('rideStatus', whereIn: [
-      'incoming',
-      'arrived_pickup',
-      'ongoing',
-      'arrived_destination',
-    ])
+        .where('rideStatus', whereIn: activeStatuses)
         .orderBy('createdAt', descending: true)
         .limit(1)
         .snapshots();
@@ -38,7 +61,7 @@ class RideRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverRideHistory(String driverId) {
     return _rides
         .where('driverID', isEqualTo: driverId)
-        .where('rideStatus', whereIn: ['completed', 'cancelled'])
+        .where('rideStatus', whereIn: const ['completed', 'cancelled'])
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots();
@@ -47,12 +70,7 @@ class RideRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRide(String riderId) {
     return _rides
         .where('riderID', isEqualTo: riderId)
-        .where('rideStatus', whereIn: [
-      'incoming',
-      'arrived_pickup',
-      'ongoing',
-      'arrived_destination',
-    ])
+        .where('rideStatus', whereIn: activeStatuses)
         .orderBy('createdAt', descending: true)
         .limit(1)
         .snapshots();
@@ -61,29 +79,22 @@ class RideRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderRideHistory(String riderId) {
     return _rides
         .where('riderID', isEqualTo: riderId)
-        .where('rideStatus', whereIn: ['completed', 'cancelled'])
+        .where('rideStatus', whereIn: const ['completed', 'cancelled'])
         .orderBy('createdAt', descending: true)
         .limit(30)
         .snapshots();
   }
 
   // ----------------------------
-  // ACCEPT REQUEST (BLOCK MULTI-ACCEPT ✅)
+  // ACCEPT REQUEST (BLOCK MULTI-ACCEPT )
   // ----------------------------
-  Future<String> acceptRequest({
-    required String requestId,
-  }) async {
+  Future<String> acceptRequest({required String requestId}) async {
     final driverId = _auth.currentUser!.uid;
 
-    // ✅ PRE-CHECK (Queries cannot be used inside tx.get)
+    // ✅ PRE-CHECK
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: driverId)
-        .where('rideStatus', whereIn: [
-      'incoming',
-      'arrived_pickup',
-      'ongoing',
-      'arrived_destination',
-    ])
+        .where('rideStatus', whereIn: activeStatuses)
         .limit(1)
         .get();
 
@@ -91,14 +102,12 @@ class RideRepository {
       throw Exception('You already have an active ride.');
     }
 
-    // ✅ TRANSACTION (locks the request so only first driver wins)
+    //TRANSACTION (locks request)
     return _db.runTransaction<String>((tx) async {
       final requestRef = _requests.doc(requestId);
       final requestSnap = await tx.get(requestRef);
 
-      if (!requestSnap.exists) {
-        throw Exception('Request not found');
-      }
+      if (!requestSnap.exists) throw Exception('Request not found');
 
       final req = requestSnap.data()!;
       final status = (req['status'] ?? '').toString();
@@ -115,7 +124,7 @@ class RideRepository {
         'requestID': requestId,
         'offerID': null,
         'driverID': driverId,
-        'riderID': req['riderId'],
+        'riderID': req['riderId'], // must be uid string
 
         // status
         'rideStatus': 'incoming',
@@ -136,7 +145,7 @@ class RideRepository {
         'paymentStatus': 'unpaid',
       });
 
-      // ✅ MUST match your Firestore rules affectedKeys list
+      // update request doc
       tx.update(requestRef, {
         'status': 'incoming',
         'driverId': driverId,
@@ -156,22 +165,17 @@ class RideRepository {
 extension RideStatusTransitions on RideRepository {
   Future<void> updateRideStatus({
     required String rideId,
-    required String nextStatus,
+    required String nextStatus, // keep String for now
   }) async {
     final driverId = _auth.currentUser!.uid;
-    final rideRef = _rides.doc(rideId);
+    final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
       final snap = await tx.get(rideRef);
+      if (!snap.exists) throw Exception('Ride not found');
 
-      if (!snap.exists) {
-        throw Exception('Ride not found');
-      }
-
-      final ride = snap.data()!;
-      if (ride['driverID'] != driverId) {
-        throw Exception('Not authorized');
-      }
+      final ride = snap.data() as Map<String, dynamic>;
+      if (ride['driverID'] != driverId) throw Exception('Not authorized');
 
       final current = (ride['rideStatus'] ?? '').toString();
 
@@ -207,7 +211,6 @@ extension RideStatusTransitions on RideRepository {
       'ongoing': ['arrived_destination'],
       'arrived_destination': ['completed'],
     };
-
     return allowed[from]?.contains(to) ?? false;
   }
 }
@@ -217,14 +220,10 @@ extension RideStatusTransitions on RideRepository {
 // =====================================================
 extension RideAutoResume on RideRepository {
   Future<String?> getDriverActiveRideIdOnce(String driverId) async {
-    final snap = await _rides
+    final snap = await _db
+        .collection('rides')
         .where('driverID', isEqualTo: driverId)
-        .where('rideStatus', whereIn: [
-      'incoming',
-      'arrived_pickup',
-      'ongoing',
-      'arrived_destination',
-    ])
+        .where('rideStatus', whereIn: RideRepository.activeStatuses)
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
@@ -234,14 +233,10 @@ extension RideAutoResume on RideRepository {
   }
 
   Future<String?> getRiderActiveRideIdOnce(String riderId) async {
-    final snap = await _rides
+    final snap = await _db
+        .collection('rides')
         .where('riderID', isEqualTo: riderId)
-        .where('rideStatus', whereIn: [
-      'incoming',
-      'arrived_pickup',
-      'ongoing',
-      'arrived_destination',
-    ])
+        .where('rideStatus', whereIn: RideRepository.activeStatuses)
         .orderBy('createdAt', descending: true)
         .limit(1)
         .get();
