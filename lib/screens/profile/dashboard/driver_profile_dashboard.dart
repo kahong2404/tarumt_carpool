@@ -10,6 +10,7 @@ import '../../../widgets/profile/profile_header.dart';
 import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
 import '../../driver_verification/driver/driver_verification_center_page.dart';
+import '../../reviews/driver_rating_screen.dart';
 
 // ✅ adjust this import if your path is different
 import '../../driver_verification/driver/driver_verification_form_page.dart';
@@ -169,14 +170,15 @@ class DriverProfileDashboard extends StatelessWidget {
                     ),
                     ProfileActionButton(
                       label: 'My Reviews',
-                      icon: Icons.star_border_rounded,
+                      icon: Icons.star_border,
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => DriverMyReviewsScreen()),
+                          MaterialPageRoute(builder: (_) => const DriverRatingScreen()),
                         );
                       },
                     ),
+
                     ProfileActionButton(
                       label: 'Notifications',
                       icon: Icons.notifications_outlined,
