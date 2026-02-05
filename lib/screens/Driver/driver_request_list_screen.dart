@@ -2,12 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../repositories/ride_repository.dart';
+import '../../repositories/rider_request_repository.dart';
 import 'driver_trip_map_screen.dart';
 
-class DriverRequestListScreen extends StatelessWidget {
-  DriverRequestListScreen({super.key});
+class DriverRequestListScreen extends StatefulWidget {
+  const DriverRequestListScreen({super.key});
 
+  @override
+  State<DriverRequestListScreen> createState() => _DriverRequestListScreenState();
+}
+
+class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
   final _rideRepo = RideRepository();
+  final _riderReqRepo = RiderRequestRepository();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ Activate any due scheduled requests when driver opens this page
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _activateDueScheduledRequestsForAllRiders();
+      } catch (_) {
+        // keep silent; this is just background activation
+      }
+    });
+  }
+
+  /// ✅ Drivers can activate "due" scheduled requests globally
+  /// so scheduled requests become visible to drivers when time arrives.
+  Future<void> _activateDueScheduledRequestsForAllRiders() async {
+    final now = Timestamp.fromDate(DateTime.now());
+
+    final snap = await FirebaseFirestore.instance
+        .collection('riderRequests')
+        .where('status', isEqualTo: 'scheduled')
+        .where('scheduledAt', isLessThanOrEqualTo: now)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {
+        'status': 'waiting',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +59,25 @@ class DriverRequestListScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         title: const Text('Ride Requests'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              try {
+                await _activateDueScheduledRequestsForAllRiders();
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Updated scheduled requests')),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed: $e')),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
@@ -58,9 +121,9 @@ class DriverRequestListScreen extends StatelessWidget {
               final requestId = docs[index].id;
 
               return _RequestCard(
-                pickup: d['pickupAddress'],
-                destination: d['destinationAddress'],
-                seats: d['seatRequested'],
+                pickup: (d['pickupAddress'] ?? '').toString(),
+                destination: (d['destinationAddress'] ?? '').toString(),
+                seats: (d['seatRequested'] ?? 1) as int,
                 onAccept: () async {
                   try {
                     final rideId = await _rideRepo.acceptRequest(
@@ -72,9 +135,7 @@ class DriverRequestListScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => DriverTripMapScreen(
-                          rideId: rideId,
-                        ),
+                        builder: (_) => DriverTripMapScreen(rideId: rideId),
                       ),
                     );
                   } catch (e) {

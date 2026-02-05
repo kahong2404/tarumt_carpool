@@ -183,7 +183,7 @@ class _RiderWaitingMapScreenState extends State<RiderWaitingMapScreen> {
                                 : () async {
                               setState(() => _cancelLoading = true);
                               try {
-                                await _repo.cancelRequestWhileWaiting(
+                                await _repo.cancelRequest(
                                   widget.requestId,
                                 );
                                 _snack('Request cancelled');

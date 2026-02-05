@@ -1,10 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
+import 'package:tarumt_carpool/utils/geo_utils.dart';
+
+enum NearbyMode { pickup, dropoff }
+
+class RideOfferFilter {
+  final double radiusKm;               // nearby radius
+  final GeoPoint? centerGeo;           // user selected location
+  final String? centerAddress;         // for UI
+  final NearbyMode nearbyMode;         // pickup OR dropoff
+  final int minSeats;                  // seatsAvailable >= minSeats
+  final bool sortByFareAsc;            // sort by fare low->high
+
+  const RideOfferFilter({
+    this.radiusKm = 10,
+    this.centerGeo,
+    this.centerAddress,
+    this.nearbyMode = NearbyMode.pickup,
+    this.minSeats = 1,
+    this.sortByFareAsc = true,
+  });
+
+  bool get hasCenter => centerGeo != null;
+
+  RideOfferFilter copyWith({
+    double? radiusKm,
+    GeoPoint? centerGeo,
+    String? centerAddress,
+    NearbyMode? nearbyMode,
+    int? minSeats,
+    bool? sortByFareAsc,
+  }) {
+    return RideOfferFilter(
+      radiusKm: radiusKm ?? this.radiusKm,
+      centerGeo: centerGeo ?? this.centerGeo,
+      centerAddress: centerAddress ?? this.centerAddress,
+      nearbyMode: nearbyMode ?? this.nearbyMode,
+      minSeats: minSeats ?? this.minSeats,
+      sortByFareAsc: sortByFareAsc ?? this.sortByFareAsc,
+    );
+  }
+}
 
 class OpenOffersList extends StatelessWidget {
-  const OpenOffersList({super.key});
+  final RideOfferFilter filter;
+  const OpenOffersList({super.key, required this.filter});
 
   @override
   Widget build(BuildContext context) {
@@ -28,17 +71,58 @@ class OpenOffersList extends StatelessWidget {
         }
 
         final offers = snapshot.data ?? [];
-        if (offers.isEmpty) return const _EmptyRideState();
+        final filtered = _applyFilterAndSort(offers);
+
+        if (filtered.isEmpty) return const _EmptyRideState();
 
         return ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(top: 6, bottom: 14),
-          itemCount: offers.length,
+          itemCount: filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, i) => _DriverOfferCard(offer: offers[i]),
+          itemBuilder: (context, i) => _DriverOfferCard(
+            offer: filtered[i],
+            filter: filter,
+          ),
         );
       },
     );
+  }
+
+  List<DriverOffer> _applyFilterAndSort(List<DriverOffer> offers) {
+    final out = <DriverOffer>[];
+
+    for (final o in offers) {
+      // seats
+      if (o.seatsAvailable < filter.minSeats) continue;
+
+      // nearby center
+      if (filter.hasCenter) {
+        final c = filter.centerGeo!;
+        final GeoPoint target =
+        (filter.nearbyMode == NearbyMode.pickup) ? o.pickupGeo : o.destinationGeo;
+
+        final km = distanceKm(
+          lat1: c.latitude,
+          lon1: c.longitude,
+          lat2: target.latitude,
+          lon2: target.longitude,
+        );
+
+        if (km > filter.radiusKm) continue;
+      }
+
+      out.add(o);
+    }
+
+    // sort by fare
+    if (filter.sortByFareAsc) {
+      out.sort((a, b) => a.fare.compareTo(b.fare));
+    } else {
+      out.sort((a, b) => b.fare.compareTo(a.fare));
+    }
+
+    return out;
   }
 }
 
@@ -79,19 +163,35 @@ class _EmptyRideState extends StatelessWidget {
 
 class _DriverOfferCard extends StatelessWidget {
   final DriverOffer offer;
-  const _DriverOfferCard({required this.offer});
+  final RideOfferFilter filter;
+
+  const _DriverOfferCard({required this.offer, required this.filter});
 
   @override
   Widget build(BuildContext context) {
     final dt = offer.rideDateTime;
 
-    final dateText = dt == null
-        ? 'Date not set'
-        : '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final dateText =
+        '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final timeText =
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
-    final timeText = dt == null
-        ? ''
-        : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    String? nearbyText;
+    if (filter.hasCenter) {
+      final c = filter.centerGeo!;
+      final GeoPoint target =
+      (filter.nearbyMode == NearbyMode.pickup) ? offer.pickupGeo : offer.destinationGeo;
+
+      final km = distanceKm(
+        lat1: c.latitude,
+        lon1: c.longitude,
+        lat2: target.latitude,
+        lon2: target.longitude,
+      );
+
+      nearbyText =
+      '${km.toStringAsFixed(1)} km from selected ${filter.nearbyMode == NearbyMode.pickup ? "pickup" : "dropoff"}';
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -145,9 +245,13 @@ class _DriverOfferCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$dateText ${timeText.isEmpty ? "" : "• $timeText"} • ${offer.seatsAvailable} seat(s)',
+            '$dateText • $timeText • ${offer.seatsAvailable} seat(s)',
             style: const TextStyle(color: Colors.black54, height: 1.3),
           ),
+          if (nearbyText != null) ...[
+            const SizedBox(height: 4),
+            Text(nearbyText, style: const TextStyle(color: Colors.black54)),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
