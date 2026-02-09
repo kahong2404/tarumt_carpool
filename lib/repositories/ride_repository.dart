@@ -8,6 +8,7 @@ class RideRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static const activeStatuses = [
+    'waiting',
     'incoming',
     'arrived_pickup',
     'ongoing',
@@ -86,12 +87,21 @@ class RideRepository {
   }
 
   // ----------------------------
-  // ACCEPT REQUEST (BLOCK MULTI-ACCEPT )
+  // ACCEPT REQUEST (BLOCK MULTI-ACCEPT)
   // ----------------------------
+  /// Flow:
+  /// riderRequests.status: waiting -> incoming
+  /// rides.rideStatus: incoming
+  ///
+  /// IMPORTANT: This uses your NEW consistent fields:
+  /// - riderRequests: riderId, pickupAddress, pickupGeo, destinationAddress, destinationGeo, status
+  /// - riderRequests: matchedDriverId, activeRideId
   Future<String> acceptRequest({required String requestId}) async {
-    final driverId = _auth.currentUser!.uid;
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not logged in');
+    final driverId = user.uid;
 
-    // ✅ PRE-CHECK
+    // ✅ PRE-CHECK: driver can't accept if already has active ride
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: driverId)
         .where('rideStatus', whereIn: activeStatuses)
@@ -102,7 +112,7 @@ class RideRepository {
       throw Exception('You already have an active ride.');
     }
 
-    //TRANSACTION (locks request)
+    // ✅ TRANSACTION (locks request)
     return _db.runTransaction<String>((tx) async {
       final requestRef = _requests.doc(requestId);
       final requestSnap = await tx.get(requestRef);
@@ -112,28 +122,49 @@ class RideRepository {
       final req = requestSnap.data()!;
       final status = (req['status'] ?? '').toString();
 
+      // Only allow accepting if still waiting
       if (status != 'waiting') {
-        throw Exception('Request already accepted or cancelled');
+        throw Exception('Request already accepted/cancelled/expired');
+      }
+
+      // If some old logic already wrote matchedDriverId, block.
+      final existingMatched = req['matchedDriverId'];
+      if (existingMatched != null && existingMatched.toString().isNotEmpty) {
+        throw Exception('Request already taken by another driver.');
+      }
+
+      final riderId = (req['riderId'] ?? '').toString();
+      if (riderId.isEmpty) throw Exception('Request missing riderId');
+
+      // copy fields (must exist)
+      final pickupAddress = (req['pickupAddress'] ?? '').toString();
+      final destinationAddress = (req['destinationAddress'] ?? '').toString();
+      final pickupGeo = req['pickupGeo'];
+      final destinationGeo = req['destinationGeo'];
+
+      if (pickupGeo is! GeoPoint || destinationGeo is! GeoPoint) {
+        throw Exception('Request missing pickup/destination GeoPoint');
       }
 
       final rideRef = _rides.doc();
       final now = FieldValue.serverTimestamp();
 
+      // 1) create ride
       tx.set(rideRef, {
         // relations
-        'requestID': requestId,
+        'requestId': requestId,
         'offerID': null,
         'driverID': driverId,
-        'riderID': req['riderId'], // must be uid string
+        'riderID': riderId,
 
         // status
         'rideStatus': 'incoming',
 
         // copied location data
-        'pickupAddress': req['pickupAddress'],
-        'destinationAddress': req['destinationAddress'],
-        'pickupGeo': req['pickupGeo'],
-        'destinationGeo': req['destinationGeo'],
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'pickupGeo': pickupGeo,
+        'destinationGeo': destinationGeo,
 
         // timestamps
         'acceptedAt': now,
@@ -145,11 +176,14 @@ class RideRepository {
         'paymentStatus': 'unpaid',
       });
 
-      // update request doc
+      // 2) update request doc
       tx.update(requestRef, {
         'status': 'incoming',
-        'driverId': driverId,
+
+        // ✅ consistent fields for your matching
+        'matchedDriverId': driverId,
         'activeRideId': rideRef.id,
+
         'acceptedAt': now,
         'updatedAt': now,
       });
@@ -165,9 +199,12 @@ class RideRepository {
 extension RideStatusTransitions on RideRepository {
   Future<void> updateRideStatus({
     required String rideId,
-    required String nextStatus, // keep String for now
+    required String nextStatus,
   }) async {
-    final driverId = _auth.currentUser!.uid;
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not logged in');
+    final driverId = user.uid;
+
     final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
@@ -185,6 +222,7 @@ extension RideStatusTransitions on RideRepository {
 
       final now = FieldValue.serverTimestamp();
 
+      // ---- 1) update ride status ----
       final updates = <String, dynamic>{
         'rideStatus': nextStatus,
         'updatedAt': now,
@@ -201,8 +239,27 @@ extension RideStatusTransitions on RideRepository {
       }
 
       tx.update(rideRef, updates);
+
+      // ---- 2) if completed -> update the related riderRequest too ----
+      if (nextStatus == 'completed') {
+        // support both naming just in case you have old docs
+        final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+        if (requestId.isNotEmpty) {
+          final reqRef = _db.collection('riderRequests').doc(requestId);
+
+          // Only update if the request exists
+          final reqSnap = await tx.get(reqRef);
+          if (reqSnap.exists) {
+            tx.update(reqRef, {
+              'status': 'completed',
+              'updatedAt': now,
+            });
+          }
+        }
+      }
     });
   }
+
 
   bool _isValidTransition(String from, String to) {
     const allowed = {

@@ -45,7 +45,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
 
   // Pricing
   static const double _baseFare = 2.00;
-  static const double _ratePerKm = 0.80;
+  static const double _ratePerKm = 2.00;
   static const double _minFare = 3.00;
   static const double _maxFare = 50.00;
 

@@ -75,17 +75,23 @@ class RiderRequestRepository {
       'rideTime': rideTime,
       'seatRequested': seatRequested,
 
-      // status model
       'status': 'waiting',
       'activeRideId': null,
 
-      // scheduled fields (optional)
       'scheduledAt': null,
+
+      // ✅ matching settings
+      'searchRadiusKm': 2.0,         // start
+      'maxRadiusKm': 20.0,           // stop
+      'searchStepKm': 2.0,           // each expand
+      'nextExpandAt': Timestamp.fromDate(DateTime.now().add(const Duration(seconds: 30))),
+      'notifiedDriverIds': <String>[],
 
       'riderId': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
 
     return requestId;
   }

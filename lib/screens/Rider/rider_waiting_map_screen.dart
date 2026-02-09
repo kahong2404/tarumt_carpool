@@ -46,8 +46,43 @@ class _RiderWaitingMapScreenState extends State<RiderWaitingMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            final shouldLeave = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Go back?'),
+                content: const Text(
+                  'Your request will continue waiting.\nYou can come back anytime.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Stay'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Go back'),
+                  ),
+                ],
+              ),
+            );
+
+            if (shouldLeave == true && mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RiderTabScaffold(),
+                ),
+                    (route) => false,
+              );
+            }
+          },
+        ),
         title: const Text('Waiting for driver'),
       ),
+
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _repo.streamRequest(widget.requestId),
         builder: (context, snap) {

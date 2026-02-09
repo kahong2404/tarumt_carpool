@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../repositories/ride_repository.dart';
-import '../../repositories/rider_request_repository.dart';
+import '../../services/driver_presence_service.dart';
+import '../../utils/geo_utils.dart';
 import 'driver_trip_map_screen.dart';
 
 class DriverRequestListScreen extends StatefulWidget {
@@ -14,24 +18,60 @@ class DriverRequestListScreen extends StatefulWidget {
 
 class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
   final _rideRepo = RideRepository();
-  final _riderReqRepo = RiderRequestRepository();
+
+  DriverPresenceService? _presence;
+  LatLng? _driverLatLng;
+
+  Timer? _tickTimer;
+  bool _runningTick = false;
+
+  static const _tickEverySeconds = 10;
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ Activate any due scheduled requests when driver opens this page
+    // Start driver presence (location used for distance filter)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await _activateDueScheduledRequestsForAllRiders();
-      } catch (_) {
-        // keep silent; this is just background activation
-      }
+      _presence = DriverPresenceService(
+        onLocation: (latLng) {
+          if (!mounted) return;
+          setState(() => _driverLatLng = latLng);
+        },
+      );
+      await _presence!.start();
     });
+
+    // Global tick: activate scheduled + expand radius
+    _tickTimer = Timer.periodic(
+      const Duration(seconds: _tickEverySeconds),
+          (_) => _globalMatchTick(),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _globalMatchTick());
   }
 
-  /// ✅ Drivers can activate "due" scheduled requests globally
-  /// so scheduled requests become visible to drivers when time arrives.
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    _presence?.stop();
+    super.dispose();
+  }
+
+  Future<void> _globalMatchTick() async {
+    if (_runningTick) return;
+    _runningTick = true;
+
+    try {
+      await _activateDueScheduledRequestsForAllRiders();
+      await _expandDueWaitingRequests();
+    } catch (e) {
+      debugPrint('❌ global tick failed: $e');
+    } finally {
+      _runningTick = false;
+    }
+  }
+
   Future<void> _activateDueScheduledRequestsForAllRiders() async {
     final now = Timestamp.fromDate(DateTime.now());
 
@@ -47,14 +87,73 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
     for (final doc in snap.docs) {
       batch.update(doc.reference, {
         'status': 'waiting',
+        'nextExpandAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(seconds: 30)),
+        ),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
     await batch.commit();
   }
 
+  Future<void> _expandDueWaitingRequests() async {
+    final now = Timestamp.fromDate(DateTime.now());
+
+    final snap = await FirebaseFirestore.instance
+        .collection('riderRequests')
+        .where('status', isEqualTo: 'waiting')
+        .where('nextExpandAt', isLessThanOrEqualTo: now)
+        .limit(50)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final doc in snap.docs) {
+      final d = doc.data();
+
+      final currentRadius = (d['searchRadiusKm'] is num)
+          ? (d['searchRadiusKm'] as num).toDouble()
+          : 2.0;
+
+      final stepKm = (d['searchStepKm'] is num)
+          ? (d['searchStepKm'] as num).toDouble()
+          : 2.0;
+
+      final maxKm = (d['maxRadiusKm'] is num)
+          ? (d['maxRadiusKm'] as num).toDouble()
+          : 20.0;
+
+      if (currentRadius >= maxKm) {
+        batch.update(doc.reference, {
+          'nextExpandAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(seconds: 60)),
+          ),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        continue;
+      }
+
+      final newRadius = currentRadius + stepKm;
+      final clamped = newRadius > maxKm ? maxKm : newRadius;
+
+      batch.update(doc.reference, {
+        'searchRadiusKm': clamped,
+        'nextExpandAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(seconds: 30)),
+        ),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final driverLoc = _driverLatLng;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
@@ -63,23 +162,26 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
-              try {
-                await _activateDueScheduledRequestsForAllRiders();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Updated scheduled requests')),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed: $e')),
-                );
-              }
+              await _globalMatchTick();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Requests updated')),
+              );
             },
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: driverLoc == null
+          ? const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'Getting your location...\n(Driver must allow location permission)',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      )
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('riderRequests')
             .where('status', isEqualTo: 'waiting')
@@ -101,7 +203,8 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
             );
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
             return const Center(
               child: Text(
                 'No waiting requests',
@@ -110,20 +213,63 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
             );
           }
 
-          final docs = snapshot.data!.docs;
+          // distance filter
+          final filtered = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+          for (final doc in docs) {
+            final d = doc.data();
+            final gp = d['pickupGeo'];
+            if (gp is! GeoPoint) continue;
+
+            final radiusKm = (d['searchRadiusKm'] is num)
+                ? (d['searchRadiusKm'] as num).toDouble()
+                : 2.0;
+
+            final pickup = LatLng(gp.latitude, gp.longitude);
+            final meters = distanceMeters(driverLoc, pickup);
+            final km = meters / 1000.0;
+
+            if (km <= radiusKm) filtered.add(doc);
+          }
+
+          if (filtered.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'No requests in your current area.\nWait for radius to expand...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+            );
+          }
 
           return ListView.separated(
             padding: const EdgeInsets.all(14),
-            itemCount: docs.length,
+            itemCount: filtered.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
-              final d = docs[index].data();
-              final requestId = docs[index].id;
+              final doc = filtered[index];
+              final d = doc.data();
+              final requestId = doc.id;
+
+              final gp = d['pickupGeo'] as GeoPoint;
+              final pickup = LatLng(gp.latitude, gp.longitude);
+
+              final radiusKm = (d['searchRadiusKm'] is num)
+                  ? (d['searchRadiusKm'] as num).toDouble()
+                  : 2.0;
+
+              final meters = distanceMeters(driverLoc, pickup);
+              final km = meters / 1000.0;
 
               return _RequestCard(
                 pickup: (d['pickupAddress'] ?? '').toString(),
                 destination: (d['destinationAddress'] ?? '').toString(),
                 seats: (d['seatRequested'] ?? 1) as int,
+                radiusKm: radiusKm,
+                distanceKm: km,
                 onAccept: () async {
                   try {
                     final rideId = await _rideRepo.acceptRequest(
@@ -159,12 +305,16 @@ class _RequestCard extends StatelessWidget {
     required this.pickup,
     required this.destination,
     required this.seats,
+    required this.radiusKm,
+    required this.distanceKm,
     required this.onAccept,
   });
 
   final String pickup;
   final String destination;
   final int seats;
+  final double radiusKm;
+  final double distanceKm;
   final VoidCallback onAccept;
 
   @override
@@ -185,30 +335,27 @@ class _RequestCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'New Ride Request',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
+          const Text('New Ride Request', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text('From: $pickup'),
           Text('To: $destination'),
           const SizedBox(height: 6),
           Text('Seats: $seats'),
+          const SizedBox(height: 6),
+          Text(
+            'Distance: ${distanceKm.toStringAsFixed(2)} km  |  Radius: ${radiusKm.toStringAsFixed(1)} km',
+            style: const TextStyle(color: Colors.black54),
+          ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
               onPressed: onAccept,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E73FF),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E73FF)),
               child: const Text(
                 'Accept Request',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
           ),
