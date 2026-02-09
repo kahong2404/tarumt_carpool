@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/notifications/fcm_service.dart';
 
 import 'package:tarumt_carpool/repositories/user_repository.dart';
@@ -23,20 +26,52 @@ class AfterLoginRouter extends StatelessWidget {
   final _auth = FirebaseAuth.instance;
   final _users = UserRepository();
 
+  // ✅ Ensure /users/{uid} exists (so Web never shows "missing profile")
+  Future<void> _ensureUserDocExists(User u) async {
+    final ref = FirebaseFirestore.instance.collection('users').doc(u.uid);
+    final snap = await ref.get();
+
+    if (!snap.exists) {
+      await ref.set({
+        'uid': u.uid,
+        'email': u.email,
+        'name': u.displayName ?? '',
+        'activeRole': 'rider', // default role
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
   Future<Widget> _route() async {
     final user = _auth.currentUser;
     if (user == null) return const LoginScreen();
 
+    // 🔎 Debug: confirm same UID/provider on web vs android
+    debugPrint(
+      'AUTH user: uid=${user.uid} email=${user.email} providers=${user.providerData.map((e) => e.providerId).toList()}',
+    );
+
     try {
+      // 1) Ensure profile doc exists
+      await _ensureUserDocExists(user);
+
+      // 2) Now use your repository
       final AppUser? me = await _users.getCurrentUser();
+
       if (me == null) {
         return const _FallbackScreen(
           title: kProfileMissingTitle,
-          message: kProfileMissingMessage,
+          message:
+          '$kProfileMissingMessage\n\n(Reason: user doc exists check passed, but repository returned null.)',
         );
       }
-// ✅ ADD THIS HERE (after user doc exists)
-      await FcmService().initAndSaveToken();
+
+      // ✅ Save FCM token only on mobile (Web can require extra setup)
+      if (!kIsWeb) {
+        await FcmService().initAndSaveToken();
+      }
+
       // ✅ Use activeRole ONLY
       final ar = me.activeRole;
 
@@ -47,10 +82,16 @@ class AfterLoginRouter extends StatelessWidget {
         return const DriverTabScaffold();
       }
       return const RiderTabScaffold();
-    } catch (_) {
-      return const _FallbackScreen(
+    } on FirebaseException catch (e) {
+      // ✅ show real firestore/auth error
+      return _FallbackScreen(
         title: kProfileMissingTitle,
-        message: kProfileMissingMessage,
+        message: 'Firebase error: ${e.code}\n${e.message ?? e.toString()}',
+      );
+    } catch (e) {
+      return _FallbackScreen(
+        title: kProfileMissingTitle,
+        message: 'Error: $e',
       );
     }
   }
@@ -65,7 +106,6 @@ class AfterLoginRouter extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-
         return snap.data ?? const LoginScreen();
       },
     );

@@ -23,20 +23,20 @@ class DriverVerificationReviewRepository {
     return q.snapshots();
   }
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> streamByStaffIdRaw(String staffId) {
-    return _verifications.doc(staffId.trim()).snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamByuserIdRaw(String userId) {
+    return _verifications.doc(userId.trim()).snapshots();
   }
 
   Future<void> reviewApplicationRaw({
-    required String staffId,
+    required String userId,
     required String decision, // approved | rejected
     required String reviewerUid,
     String? rejectReason,
   }) async {
-    final staffIdTrim = staffId.trim();
-    if (staffIdTrim.isEmpty) throw Exception('Missing staffId.');
+    final userIdTrim = userId.trim();
+    if (userIdTrim.isEmpty) throw Exception('Missing userId.');
 
-    final vRef = _verifications.doc(staffIdTrim);
+    final vRef = _verifications.doc(userIdTrim);
 
     await _db.runTransaction((tx) async {
       final vSnap = await tx.get(vRef);

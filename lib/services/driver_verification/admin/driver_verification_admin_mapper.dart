@@ -7,7 +7,7 @@ import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 /// Admin-side mapping helpers.
 /// Keeps ALL field names consistent with Firestore schema:
 ///
-/// driver_verifications/{staffId}
+/// driver_verifications/{userId}
 /// - vehicle: { model, plateNumber, color, imageUrl }
 /// - documents: { licensePdfUrl, insurancePdfUrl }
 /// - verification: { status, rejectionReason, reviewedBy, reviewedAt }
@@ -16,11 +16,11 @@ class DriverVerificationAdminMapper {
   // Safe field extraction
   // ----------------------------
   static DriverVerificationApplication toApplication({
-    required String staffId,
+    required String userId,
     required Map<String, dynamic> data,
   }) {
     return DriverVerificationApplication(
-      staffId: staffId,
+      userId: userId,
       uid: (data['uid'] ?? '').toString(),
       submittedAt: data['submittedAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,

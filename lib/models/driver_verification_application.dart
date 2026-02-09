@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'driver_verification_profile.dart';
 
 class DriverVerificationApplication {
-  final String staffId; // doc id
+  final String userId; // doc id
   final String uid;
 
   final Timestamp? submittedAt;
@@ -11,7 +11,7 @@ class DriverVerificationApplication {
   final DriverVerificationProfile profile;
 
   DriverVerificationApplication({
-    required this.staffId,
+    required this.userId,
     required this.uid,
     required this.submittedAt,
     required this.updatedAt,
@@ -19,11 +19,11 @@ class DriverVerificationApplication {
   });
 
   factory DriverVerificationApplication.fromDoc({
-    required String staffId,
+    required String userId,
     required Map<String, dynamic> data,
   }) {
     return DriverVerificationApplication(
-      staffId: staffId,
+      userId: userId,
       uid: (data['uid'] ?? '').toString(),
       submittedAt: data['submittedAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,

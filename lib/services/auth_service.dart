@@ -11,7 +11,7 @@ class AuthService {
 
   Future<void> register({
     required String role, // 'rider' or 'driver'
-    required String staffId,
+    required String userId,
     required String name,
     required String phone,
     required String email,
@@ -19,7 +19,7 @@ class AuthService {
   }) async {
     final errs = Validators.validateRegisterCore(
       email: email,
-      staffId: staffId,
+      userId: userId,
       name: name,
       phone: phone,
       password: password,
@@ -27,12 +27,12 @@ class AuthService {
     if (errs.isNotEmpty) throw Exception(errs.join('\n'));
 
     final emailLower = email.trim().toLowerCase();
-    final staffIdTrim = staffId.trim();
+    final userIdTrim = userId.trim();
     final phoneTrim = phone.trim();
     final initialRole = role.trim(); // rider/driver
 
     final dupErrors = await _users.checkDuplicates(
-      staffId: staffIdTrim,
+      userId: userIdTrim,
       phone: phoneTrim,
       emailLower: emailLower,
     );
@@ -47,14 +47,14 @@ class AuthService {
 
     final appUser = AppUser(
       uid: uid,
-      staffId: staffIdTrim,
+      userId: userIdTrim,
       name: name.trim(),
       email: emailLower,
       phone: phoneTrim,
       roles: [initialRole],
       activeRole: initialRole,
       driverStatus: 'not_applied',
-      walletBalance: 0,
+      walletBalanceCents: 0,
       photoUrl: null,
     );
 

@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminApplicationCard extends StatelessWidget {
-  final String staffId;
+  final String userId;
   final String vehicleModel;
   final String status;
   final Timestamp? createdAt;
@@ -10,7 +10,7 @@ class AdminApplicationCard extends StatelessWidget {
 
   const AdminApplicationCard({
     super.key,
-    required this.staffId,
+    required this.userId,
     required this.vehicleModel,
     required this.status,
     required this.createdAt,
@@ -84,7 +84,7 @@ class AdminApplicationCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Staff ID: $staffId',
+                    'Staff ID: $userId',
                     style: const TextStyle(color: Colors.black54),
                   ),
                   const SizedBox(height: 4),

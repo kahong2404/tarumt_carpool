@@ -9,7 +9,7 @@ class Validators {
     return e.endsWith('@student.tarc.edu.my') || e.endsWith('@tarc.edu.my');
   }
 
-  static bool isValidStaffId(String id) =>
+  static bool isValiduserId(String id) =>
       RegExp(r'^\d{7}$').hasMatch(id.trim());
 
   static bool isValidName(String name) {
@@ -51,7 +51,7 @@ class Validators {
   // ----------------------
   static List<String> validateRegisterCore({
     required String email,
-    required String staffId,
+    required String userId,
     required String name,
     required String phone,
     required String password,
@@ -66,10 +66,10 @@ class Validators {
     }
 
     // Staff ID
-    if (staffId.trim().isEmpty) {
-      _add(errors, AppStrings.enterStaffId);
-    } else if (!isValidStaffId(staffId)) {
-      _add(errors, AppStrings.invalidStaffId);
+    if (userId.trim().isEmpty) {
+      _add(errors, AppStrings.enteruserId);
+    } else if (!isValiduserId(userId)) {
+      _add(errors, AppStrings.invaliduserId);
     }
 
     // Name
@@ -102,7 +102,7 @@ class Validators {
   // ----------------------
   static List<String> validateRegisterUI({
     required String email,
-    required String staffId,
+    required String userId,
     required String name,
     required String phone,
     required String password,
@@ -110,7 +110,7 @@ class Validators {
   }) {
     final errors = validateRegisterCore(
       email: email,
-      staffId: staffId,
+      userId: userId,
       name: name,
       phone: phone,
       password: password,

@@ -17,19 +17,13 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -57,7 +51,28 @@ class DefaultFirebaseOptions {
     appId: '1:688490305856:android:b4a4704379985e66cd82a5',
     messagingSenderId: '688490305856',
     projectId: 'tarumt-carpooling-c71c7',
+    databaseURL: 'https://tarumt-carpooling-c71c7-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'tarumt-carpooling-c71c7.firebasestorage.app',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCxV-JpyGVw4WvlX1qOij1IQG3sAyO1onk',
+    appId: '1:688490305856:web:7dfaec94708c867acd82a5',
+    messagingSenderId: '688490305856',
+    projectId: 'tarumt-carpooling-c71c7',
+    authDomain: 'tarumt-carpooling-c71c7.firebaseapp.com',
+    databaseURL: 'https://tarumt-carpooling-c71c7-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'tarumt-carpooling-c71c7.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDmPRYXLhduWhRMCxm7QBZW8OBBALd4A1Y',
+    appId: '1:688490305856:ios:a47ba4b0554e7cffcd82a5',
+    messagingSenderId: '688490305856',
+    projectId: 'tarumt-carpooling-c71c7',
+    databaseURL: 'https://tarumt-carpooling-c71c7-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'tarumt-carpooling-c71c7.firebasestorage.app',
+    iosBundleId: 'com.tarumt.tarumtCarpool',
   );
 
 }

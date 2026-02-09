@@ -10,25 +10,25 @@ class DriverVerificationRepository {
   CollectionReference<Map<String, dynamic>> get _users =>
       _db.collection('users');
 
-  Stream<Map<String, dynamic>?> streamByStaffId(String staffId) {
-    return _verifications.doc(staffId.trim()).snapshots().map((d) => d.data());
+  Stream<Map<String, dynamic>?> streamByuserId(String userId) {
+    return _verifications.doc(userId.trim()).snapshots().map((d) => d.data());
   }
 
-  Future<Map<String, dynamic>?> getByStaffId(String staffId) async {
-    final doc = await _verifications.doc(staffId.trim()).get();
+  Future<Map<String, dynamic>?> getByuserId(String userId) async {
+    final doc = await _verifications.doc(userId.trim()).get();
     if (!doc.exists) return null;
     return doc.data();
   }
 
   Future<void> submitPending({
     required String uid,
-    required String staffId,
+    required String userId,
     required DriverVerificationProfile profile,
   }) async {
-    final staffIdTrim = staffId.trim();
-    if (staffIdTrim.isEmpty) throw Exception('Missing staffId.');
+    final userIdTrim = userId.trim();
+    if (userIdTrim.isEmpty) throw Exception('Missing userId.');
 
-    final vRef = _verifications.doc(staffIdTrim);
+    final vRef = _verifications.doc(userIdTrim);
     final uRef = _users.doc(uid);
 
     await _db.runTransaction((tx) async {
@@ -53,7 +53,7 @@ class DriverVerificationRepository {
         vRef,
         {
           'uid': uid,
-          'staffId': staffIdTrim,
+          'userId': userIdTrim,
           if (!vSnap.exists) 'submittedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
 

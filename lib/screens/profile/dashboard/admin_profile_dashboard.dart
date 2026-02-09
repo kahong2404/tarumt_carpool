@@ -48,9 +48,7 @@ class AdminProfileDashboard extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(12),
                   children: [
-                    ProfileActionButton(label: 'User Management', icon: Icons.manage_accounts_outlined, onTap: () {}),
-                    ProfileActionButton(label: 'Reports', icon: Icons.analytics_outlined, onTap: () {}),
-                    ProfileActionButton(label: 'System Settings', icon: Icons.settings_outlined, onTap: () {}),
+                    // ProfileActionButton(label: 'User Management', icon: Icons.manage_accounts_outlined, onTap: () {}),
                     ProfileActionButton(
                       label: 'Driver Verification',
                       icon: Icons.verified_user_outlined,

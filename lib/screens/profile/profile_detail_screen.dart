@@ -10,6 +10,7 @@ import '../../utils/app_errors.dart';
 import '../../utils/validators.dart';
 
 import '../../widgets/error_list.dart';
+import '../../widgets/layout/app_scaffold.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/danger_button.dart';
 import '../../widgets/primary_text_field.dart';
@@ -198,14 +199,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: const Text('Profile'),
-      ),
-      body: StreamBuilder<Map<String, dynamic>?>(
+    return AppScaffold(
+      title: 'Profile',
+      child: StreamBuilder<Map<String, dynamic>?>(
         stream: _repo.streamUserDoc(_uid),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -219,7 +215,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           final name = (data['name'] ?? '') as String;
           final role = (data['activeRole'] ?? '') as String;
           final email = (data['email'] ?? '') as String;
-          final staffId = (data['staffId'] ?? '') as String;
+          final userId = (data['userId'] ?? '') as String;
           final phone = (data['phone'] ?? '') as String;
           final photoUrl = (data['photoUrl'] ?? '') as String;
 
@@ -283,7 +279,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       ReadOnlyField(label: 'TARUMT Email', value: email),
                       const SizedBox(height: 12),
 
-                      ReadOnlyField(label: 'Student / Staff ID', value: staffId),
+                      ReadOnlyField(label: 'Student / Staff ID', value: userId),
                       const SizedBox(height: 12),
 
                       PrimaryTextField(

@@ -14,44 +14,44 @@ class DriverVerificationReviewService {
     return _repo.streamListRaw(status: status, descending: descending).map((snap) {
       return snap.docs.map((d) {
         return DriverVerificationApplication.fromDoc(
-          staffId: d.id,
+          userId: d.id,
           data: d.data(),
         );
       }).toList();
     });
   }
 
-  Stream<DriverVerificationApplication?> streamApplication(String staffId) {
-    return _repo.streamByStaffIdRaw(staffId).map((doc) {
+  Stream<DriverVerificationApplication?> streamApplication(String userId) {
+    return _repo.streamByuserIdRaw(userId).map((doc) {
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;
 
       return DriverVerificationApplication.fromDoc(
-        staffId: doc.id,
+        userId: doc.id,
         data: data,
       );
     });
   }
 
   Future<void> approve({
-    required String staffId,
+    required String userId,
     required String reviewerUid,
   }) {
     return _repo.reviewApplicationRaw(
-      staffId: staffId,
+      userId: userId,
       decision: 'approved',
       reviewerUid: reviewerUid,
     );
   }
 
   Future<void> reject({
-    required String staffId,
+    required String userId,
     required String reviewerUid,
     required String reason,
   }) {
     return _repo.reviewApplicationRaw(
-      staffId: staffId,
+      userId: userId,
       decision: 'rejected',
       reviewerUid: reviewerUid,
       rejectReason: reason,

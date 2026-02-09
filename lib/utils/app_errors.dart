@@ -42,7 +42,7 @@ class AppErrors {
     // ✅ Your custom repo exception strings
     final msg = e.toString();
     if (msg.contains('Student/Staff ID already registered')) {
-      return AppStrings.staffIdAlreadyRegistered;
+      return AppStrings.userIdAlreadyRegistered;
     }
     if (msg.contains('Phone number already registered.')) {
       return AppStrings.phoneAlreadyRegistered;

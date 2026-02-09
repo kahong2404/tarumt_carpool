@@ -4,17 +4,17 @@ import 'package:firebase_storage/firebase_storage.dart';
 class DriverVerificationStorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  Reference _ref(String staffId, String filename) {
-    return _storage.ref('driver_verifications/$staffId/$filename');
+  Reference _ref(String userId, String filename) {
+    return _storage.ref('driver_verifications/$userId/$filename');
   }
 
   Future<String> uploadVehicleImage({
-    required String staffId,
+    required String userId,
     required Uint8List bytes,
     required String contentType,
   }) async {
     final filename = contentType.contains('png') ? 'vehicle.png' : 'vehicle.jpg';
-    final ref = _ref(staffId, filename);
+    final ref = _ref(userId, filename);
 
     final task = await ref.putData(
       bytes,
@@ -24,10 +24,10 @@ class DriverVerificationStorageService {
   }
 
   Future<String> uploadLicensePdf({
-    required String staffId,
+    required String userId,
     required Uint8List bytes,
   }) async {
-    final ref = _ref(staffId, 'license.pdf');
+    final ref = _ref(userId, 'license.pdf');
     final task = await ref.putData(
       bytes,
       SettableMetadata(contentType: 'application/pdf'),
@@ -36,10 +36,10 @@ class DriverVerificationStorageService {
   }
 
   Future<String> uploadInsurancePdf({
-    required String staffId,
+    required String userId,
     required Uint8List bytes,
   }) async {
-    final ref = _ref(staffId, 'insurance.pdf');
+    final ref = _ref(userId, 'insurance.pdf');
     final task = await ref.putData(
       bytes,
       SettableMetadata(contentType: 'application/pdf'),

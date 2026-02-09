@@ -16,8 +16,8 @@ import '../../pickers/image_picker_service.dart';
 import '../../pickers/pdf_picker_service.dart';
 
 class DriverVerificationFormState {
-  final bool loadingStaffId;
-  final String? staffId;
+  final bool loadinguserId;
+  final String? userId;
 
   final bool submitting;
 
@@ -36,8 +36,8 @@ class DriverVerificationFormState {
   final List<String> errors;
 
   const DriverVerificationFormState({
-    required this.loadingStaffId,
-    required this.staffId,
+    required this.loadinguserId,
+    required this.userId,
     required this.submitting,
     required this.uploadingVehicle,
     required this.uploadingLicense,
@@ -53,8 +53,8 @@ class DriverVerificationFormState {
 
   factory DriverVerificationFormState.initial() {
     return const DriverVerificationFormState(
-      loadingStaffId: true,
-      staffId: null,
+      loadinguserId: true,
+      userId: null,
       submitting: false,
       uploadingVehicle: false,
       uploadingLicense: false,
@@ -70,8 +70,8 @@ class DriverVerificationFormState {
   }
 
   DriverVerificationFormState copyWith({
-    bool? loadingStaffId,
-    String? staffId,
+    bool? loadinguserId,
+    String? userId,
     bool? submitting,
     bool? uploadingVehicle,
     bool? uploadingLicense,
@@ -85,8 +85,8 @@ class DriverVerificationFormState {
     List<String>? errors,
   }) {
     return DriverVerificationFormState(
-      loadingStaffId: loadingStaffId ?? this.loadingStaffId,
-      staffId: staffId ?? this.staffId,
+      loadinguserId: loadinguserId ?? this.loadinguserId,
+      userId: userId ?? this.userId,
       submitting: submitting ?? this.submitting,
       uploadingVehicle: uploadingVehicle ?? this.uploadingVehicle,
       uploadingLicense: uploadingLicense ?? this.uploadingLicense,
@@ -125,16 +125,16 @@ class DriverVerificationFormController extends ChangeNotifier {
 
   Future<void> init() async {
     try {
-      final staffId = await _svc.getMyStaffIdOrThrow();
+      final userId = await _svc.getMyuserIdOrThrow();
       state = state.copyWith(
-        staffId: staffId,
-        loadingStaffId: false,
+        userId: userId,
+        loadinguserId: false,
         errors: [],
       );
       notifyListeners();
     } catch (e) {
       state = state.copyWith(
-        loadingStaffId: false,
+        loadinguserId: false,
         errors: AppErrors.friendlyList(e),
       );
       notifyListeners();
@@ -158,7 +158,7 @@ class DriverVerificationFormController extends ChangeNotifier {
   }
 
   Future<void> pickVehicleImage(BuildContext context) async {
-    if (state.staffId == null) return;
+    if (state.userId == null) return;
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -194,7 +194,7 @@ class DriverVerificationFormController extends ChangeNotifier {
       final contentType = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
 
       final url = await _storage.uploadVehicleImage(
-        staffId: state.staffId!,
+        userId: state.userId!,
         bytes: picked.bytes,
         contentType: contentType,
       );
@@ -208,7 +208,7 @@ class DriverVerificationFormController extends ChangeNotifier {
   }
 
   Future<void> pickLicensePdf() async {
-    if (state.staffId == null) return;
+    if (state.userId == null) return;
 
     final file = await _pdfPicker.pickPdfFile();
     if (file == null) return;
@@ -232,7 +232,7 @@ class DriverVerificationFormController extends ChangeNotifier {
 
     try {
       final url = await _storage.uploadLicensePdf(
-        staffId: state.staffId!,
+        userId: state.userId!,
         bytes: bytes,
       );
       state = state.copyWith(licenseUrl: url, uploadingLicense: false);
@@ -244,7 +244,7 @@ class DriverVerificationFormController extends ChangeNotifier {
   }
 
   Future<void> pickInsurancePdf() async {
-    if (state.staffId == null) return;
+    if (state.userId == null) return;
 
     final file = await _pdfPicker.pickPdfFile();
     if (file == null) return;
@@ -272,7 +272,7 @@ class DriverVerificationFormController extends ChangeNotifier {
 
     try {
       final url = await _storage.uploadInsurancePdf(
-        staffId: state.staffId!,
+        userId: state.userId!,
         bytes: bytes,
       );
       state = state.copyWith(insuranceUrl: url, uploadingInsurance: false);
@@ -285,7 +285,7 @@ class DriverVerificationFormController extends ChangeNotifier {
 
   bool get canSubmit =>
       !state.submitting &&
-          state.staffId != null &&
+          state.userId != null &&
           !state.uploadingVehicle &&
           !state.uploadingLicense &&
           !state.uploadingInsurance;
@@ -323,7 +323,7 @@ class DriverVerificationFormController extends ChangeNotifier {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('Not signed in.');
 
-      final staffId = state.staffId!;
+      final userId = state.userId!;
       final profile = DriverVerificationProfile(
         vehicleModel: model.trim(),
         plateNumber: plate.trim(),
@@ -336,7 +336,7 @@ class DriverVerificationFormController extends ChangeNotifier {
 
       await _repo.submitPending(
         uid: uid,
-        staffId: staffId,
+        userId: userId,
         profile: profile,
       );
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'admin_home_content.dart';
-import '../profile/dashboard/admin_profile_dashboard.dart';
+import 'package:tarumt_carpool/screens/profile/dashboard/admin_profile_dashboard.dart';
 
 class AdminTabScaffold extends StatefulWidget {
   const AdminTabScaffold({super.key});

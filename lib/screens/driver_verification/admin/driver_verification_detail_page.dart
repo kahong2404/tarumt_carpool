@@ -11,8 +11,8 @@ import 'package:tarumt_carpool/widgets/driver_verification/dv_files_card.dart';
 import 'package:tarumt_carpool/widgets/driver_verification/dv_reject_card.dart';
 
 class DriverVerificationDetailPage extends StatefulWidget {
-  final String staffId;
-  const DriverVerificationDetailPage({super.key, required this.staffId});
+  final String userId;
+  const DriverVerificationDetailPage({super.key, required this.userId});
 
   @override
   State<DriverVerificationDetailPage> createState() =>
@@ -115,7 +115,7 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
       final adminUid = FirebaseAuth.instance.currentUser?.uid;
       if (adminUid == null) throw Exception('Not signed in.');
 
-      await _svc.approve(staffId: widget.staffId, reviewerUid: adminUid);
+      await _svc.approve(userId: widget.userId, reviewerUid: adminUid);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +143,7 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
       if (adminUid == null) throw Exception('Not signed in.');
 
       await _svc.reject(
-        staffId: widget.staffId,
+        userId: widget.userId,
         reviewerUid: adminUid,
         reason: reason,
       );
@@ -226,10 +226,10 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
       appBar: AppBar(
         backgroundColor: brandBlue,
         foregroundColor: Colors.white,
-        title: Text('Staff ID: ${widget.staffId}'),
+        title: Text('Staff ID: ${widget.userId}'),
       ),
       body: StreamBuilder<DriverVerificationApplication?>(
-        stream: _svc.streamApplication(widget.staffId),
+        stream: _svc.streamApplication(widget.userId),
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(
@@ -275,7 +275,7 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
                   DvInfoCard(
                     title: 'Submitted Details',
                     rows: [
-                      DvInfoRow(label: 'Staff ID', value: app.staffId),
+                      DvInfoRow(label: 'Staff ID', value: app.userId),
                       DvInfoRow(label: 'Vehicle', value: vehicleModel),
                       DvInfoRow(label: 'Plate', value: p.plateNumber),
                       DvInfoRow(label: 'Color', value: p.color),

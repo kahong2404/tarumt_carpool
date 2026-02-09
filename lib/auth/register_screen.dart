@@ -22,7 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String get _role => _roleIndex == 0 ? 'rider' : 'driver';
 
   final _emailCtrl = TextEditingController();
-  final _staffIdCtrl = TextEditingController();
+  final _userIdCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
@@ -38,7 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() { // dispose means after leave this page, flutter fress memory from controllers
     _emailCtrl.dispose();
-    _staffIdCtrl.dispose();
+    _userIdCtrl.dispose();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _pwCtrl.dispose();
@@ -52,7 +52,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final errs = Validators.validateRegisterUI(
       email: _emailCtrl.text,
-      staffId: _staffIdCtrl.text,
+      userId: _userIdCtrl.text,
       name: _nameCtrl.text,
       phone: _phoneCtrl.text,
       password: _pwCtrl.text,
@@ -68,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await _auth.register(
         role: _role,
-        staffId: _staffIdCtrl.text,
+        userId: _userIdCtrl.text,
         name: _nameCtrl.text,
         phone: _phoneCtrl.text,
         email: _emailCtrl.text,
@@ -181,7 +181,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 12),
 
               PrimaryTextField(
-                controller: _staffIdCtrl,
+                controller: _userIdCtrl,
                 label: 'Student / Staff ID (7 digits)',
                 keyboardType: TextInputType.number,
               ),

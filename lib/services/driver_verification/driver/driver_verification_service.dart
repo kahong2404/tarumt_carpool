@@ -15,22 +15,22 @@ class DriverVerificationService {
     return uid;
   }
 
-  Future<String> getMyStaffIdOrThrow() async {
-    final staffId = await _userRepo.getStaffIdOfCurrentUser();
-    if (staffId == null || staffId.trim().isEmpty) {
-      throw Exception('Missing staffId in user profile.');
+  Future<String> getMyuserIdOrThrow() async {
+    final userId = await _userRepo.getuserIdOfCurrentUser();
+    if (userId == null || userId.trim().isEmpty) {
+      throw Exception('Missing userId in user profile.');
     }
-    return staffId.trim();
+    return userId.trim();
   }
 
   Stream<Map<String, dynamic>?> streamMyVerification() async* {
-    final staffId = await getMyStaffIdOrThrow();
-    yield* _repo.streamByStaffId(staffId);
+    final userId = await getMyuserIdOrThrow();
+    yield* _repo.streamByuserId(userId);
   }
 
   Future<void> submitPending({required DriverVerificationProfile profile}) async {
     final uid = myUid;
-    final staffId = await getMyStaffIdOrThrow();
-    await _repo.submitPending(uid: uid, staffId: staffId, profile: profile);
+    final userId = await getMyuserIdOrThrow();
+    await _repo.submitPending(uid: uid, userId: userId, profile: profile);
   }
 }

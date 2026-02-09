@@ -7,7 +7,7 @@ class DriverVerificationFilterBar extends StatefulWidget {
   final ValueChanged<String> onStatusChanged;
   final ValueChanged<bool> onSortChanged;
 
-  final ValueChanged<String> onSearchStaffId;
+  final ValueChanged<String> onSearchuserId;
   final VoidCallback onClearSearch;
 
   const DriverVerificationFilterBar({
@@ -16,7 +16,7 @@ class DriverVerificationFilterBar extends StatefulWidget {
     required this.descending,
     required this.onStatusChanged,
     required this.onSortChanged,
-    required this.onSearchStaffId,
+    required this.onSearchuserId,
     required this.onClearSearch,
   });
 
@@ -52,7 +52,7 @@ class _DriverVerificationFilterBarState extends State<DriverVerificationFilterBa
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
-                  onSubmitted: (v) => widget.onSearchStaffId(v.trim()),
+                  onSubmitted: (v) => widget.onSearchuserId(v.trim()),
                 ),
               ),
               const SizedBox(width: 8),

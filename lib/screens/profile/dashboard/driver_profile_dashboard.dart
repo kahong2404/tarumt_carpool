@@ -11,6 +11,7 @@ import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
 import '../../driver_verification/driver/driver_verification_center_page.dart';
 import '../../reviews/driver_rating_screen.dart';
+import '../../payment/wallet_screen.dart';
 
 // ✅ adjust this import if your path is different
 import '../../driver_verification/driver/driver_verification_form_page.dart';
@@ -138,9 +139,9 @@ class DriverProfileDashboard extends StatelessWidget {
                       label: 'Driver Verification Center',
                       icon: Icons.verified_user_outlined,
                       onTap: () {
-                        final staffId = (d['staffId'] ?? '').toString();
+                        final userId = (d['userId'] ?? '').toString();
 
-                        if (staffId.isEmpty) {
+                        if (userId.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Staff ID not found.')),
                           );
@@ -158,11 +159,16 @@ class DriverProfileDashboard extends StatelessWidget {
                     ),
 
 
-                    ProfileActionButton(
-                      label: 'Earnings',
-                      icon: Icons.account_balance_wallet_outlined,
-                      onTap: () {},
-                    ),
+                  ProfileActionButton(
+                  label: 'Payment',
+                  icon: Icons.star_border,
+                  onTap: () {
+                  Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WalletScreen()),
+                  );
+                  },
+                  ),
                     ProfileActionButton(
                       label: 'My Vehicles',
                       icon: Icons.directions_car_outlined,

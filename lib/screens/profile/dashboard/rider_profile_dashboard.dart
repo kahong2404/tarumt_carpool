@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../payment/wallet_screen.dart';
 
 import '../../../auth/after_login_router.dart';
 import '../../../repositories/user_repository.dart';
@@ -135,9 +136,14 @@ class RiderProfileDashboard extends StatelessWidget {
                       onTap: () {},
                     ),
                     ProfileActionButton(
-                      label: 'Subscriptions',
-                      icon: Icons.subscriptions_outlined,
-                      onTap: () {},
+                      label: 'Payment',
+                      icon: Icons.star_border,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),

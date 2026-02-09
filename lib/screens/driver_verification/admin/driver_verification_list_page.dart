@@ -22,7 +22,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
 
   String _status = 'all'; // all/pending/approved/rejected
   bool _descending = true; // latest first
-  String _searchStaffId = '';
+  String _searchuserId = '';
 
   @override
   void dispose() {
@@ -32,7 +32,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
 
   @override
   Widget build(BuildContext context) {
-    final searching = _searchStaffId.trim().isNotEmpty;
+    final searching = _searchuserId.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -73,14 +73,14 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
                     ),
                     isDense: true,
                   ),
-                  onSubmitted: (v) => setState(() => _searchStaffId = v.trim()),
+                  onSubmitted: (v) => setState(() => _searchuserId = v.trim()),
                 ),
               ),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () {
                   _searchCtrl.clear();
-                  setState(() => _searchStaffId = '');
+                  setState(() => _searchuserId = '');
                 },
                 icon: const Icon(Icons.clear),
               ),
@@ -149,7 +149,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
             final app = items[i];
             return _AdminCard(
               app: app,
-              onTap: () => _openDetail(app.staffId),
+              onTap: () => _openDetail(app.userId),
             );
           },
         );
@@ -158,10 +158,10 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
   }
 
   Widget _buildSearchStream() {
-    final staffId = _searchStaffId.trim();
+    final userId = _searchuserId.trim();
 
     return StreamBuilder<DriverVerificationApplication?>(
-      stream: _svc.streamApplication(staffId),
+      stream: _svc.streamApplication(userId),
       builder: (context, snap) {
         if (snap.hasError) return _errorBox(snap.error.toString());
         if (snap.connectionState == ConnectionState.waiting) {
@@ -178,7 +178,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            _AdminCard(app: app, onTap: () => _openDetail(app.staffId)),
+            _AdminCard(app: app, onTap: () => _openDetail(app.userId)),
           ],
         );
       },
@@ -194,11 +194,11 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
     );
   }
 
-  void _openDetail(String staffId) {
+  void _openDetail(String userId) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DriverVerificationDetailPage(staffId: staffId),
+        builder: (_) => DriverVerificationDetailPage(userId: userId),
       ),
     );
   }
@@ -283,7 +283,7 @@ class _AdminCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Staff ID: ${app.staffId}',
+                    'Staff ID: ${app.userId}',
                     style: const TextStyle(color: Colors.black54),
                   ),
                   const SizedBox(height: 6),

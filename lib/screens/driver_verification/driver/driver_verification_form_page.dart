@@ -54,10 +54,10 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
       if (_prefilled) return;
       _prefilled = true;
 
-      final staffId = controller.state.staffId;
-      if (staffId == null) return;
+      final userId = controller.state.userId;
+      if (userId == null) return;
 
-      final doc = await DriverVerificationRepository().getByStaffId(staffId);
+      final doc = await DriverVerificationRepository().getByuserId(userId);
       if (doc == null) return;
 
       final p = DriverVerificationProfile.fromMap(doc);
@@ -90,7 +90,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
   Widget build(BuildContext context) {
     final s = controller.state;
 
-    if (s.loadingStaffId) {
+    if (s.loadinguserId) {
       return const Scaffold(
         backgroundColor: Color(0xFFF5F6FA),
         body: Center(child: CircularProgressIndicator()),
@@ -111,7 +111,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              s.staffId == null ? 'Staff ID: -' : 'Staff ID: ${s.staffId}',
+              s.userId == null ? 'Staff ID: -' : 'Staff ID: ${s.userId}',
               style: const TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 12),

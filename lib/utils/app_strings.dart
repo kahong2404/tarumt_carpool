@@ -9,9 +9,9 @@ class AppStrings {
   // ======================
   // Staff / Student ID
   // ======================
-  static const enterStaffId = 'Please enter your Student/Staff ID.';
-  static const invalidStaffId = 'Student/Staff ID must be exactly 7 digits.';
-  static const staffIdAlreadyRegistered =
+  static const enteruserId = 'Please enter your Student/Staff ID.';
+  static const invaliduserId = 'Student/Staff ID must be exactly 7 digits.';
+  static const userIdAlreadyRegistered =
       'Student/Staff ID already registered.';
 
   // ======================

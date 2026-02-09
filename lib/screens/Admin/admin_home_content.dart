@@ -94,19 +94,19 @@ class _DriverVerificationList extends StatelessWidget {
     final items = const [
       _DriverVerifyVM(
         name: 'Chong Ka Hong',
-        staffId: '2314524',
+        userId: '2314524',
         dateText: '15 April 2025',
         status: _VerifyStatus.pending,
       ),
       _DriverVerifyVM(
         name: 'Ho Yi Von',
-        staffId: '2314542',
+        userId: '2314542',
         dateText: '11 December 2025',
         status: _VerifyStatus.approved,
       ),
       _DriverVerifyVM(
         name: 'Chong Chee Wee',
-        staffId: '2314523',
+        userId: '2314523',
         dateText: '25 May 2025',
         status: _VerifyStatus.rejected,
       ),
@@ -135,13 +135,13 @@ enum _VerifyStatus { pending, approved, rejected }
 
 class _DriverVerifyVM {
   final String name;
-  final String staffId;
+  final String userId;
   final String dateText;
   final _VerifyStatus status;
 
   const _DriverVerifyVM({
     required this.name,
-    required this.staffId,
+    required this.userId,
     required this.dateText,
     required this.status,
   });
@@ -192,7 +192,7 @@ class _DriverVerifyCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(vm.staffId, style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600)),
+          Text(vm.userId, style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(vm.dateText, style: const TextStyle(color: Colors.black54)),
           const SizedBox(height: 10),
