@@ -13,9 +13,15 @@ import 'auth/after_login_router.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // ✅ Android may auto-init Firebase -> calling initializeApp again can throw duplicate-app.
+  // This handles: fresh run, hot restart, and native auto-init.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+  }
 
   // ✅ Stripe plugin is NOT supported on Web
   if (!kIsWeb) {
@@ -37,7 +43,6 @@ class MyApp extends StatelessWidget {
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
-          // loading
           if (snap.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
