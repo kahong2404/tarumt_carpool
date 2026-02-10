@@ -178,9 +178,7 @@ class RideRepository {
 
       // 2) update request doc
       tx.update(requestRef, {
-        'status': 'incoming',
-
-        // ✅ consistent fields for your matching
+        'status': 'accepted',
         'matchedDriverId': driverId,
         'activeRideId': rideRef.id,
 
