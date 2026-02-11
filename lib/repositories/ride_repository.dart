@@ -18,7 +18,8 @@ class RideRepository {
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('riderRequests');
 
-  CollectionReference<Map<String, dynamic>> get _rides => _db.collection('rides');
+  CollectionReference<Map<String, dynamic>> get _rides =>
+      _db.collection('rides');
 
   // ----------------------------
   // OOP STREAMS (Recommended)
@@ -44,7 +45,7 @@ class RideRepository {
   }
 
   // ----------------------------
-  // RAW STREAMS (If you still need Map)
+  // RAW STREAMS
   // ----------------------------
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamRide(String rideId) {
     return _rides.doc(rideId).snapshots();
@@ -54,6 +55,16 @@ class RideRepository {
     return _rides
         .where('driverID', isEqualTo: driverId)
         .where('rideStatus', whereIn: activeStatuses)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRequest(String riderId) {
+    return _db
+        .collection('riderRequests')
+        .where('riderId', isEqualTo: riderId)
+        .where('status', whereIn: const ['waiting', 'scheduled', 'incoming'])
         .orderBy('createdAt', descending: true)
         .limit(1)
         .snapshots();
@@ -92,10 +103,6 @@ class RideRepository {
   /// Flow:
   /// riderRequests.status: waiting -> incoming
   /// rides.rideStatus: incoming
-  ///
-  /// IMPORTANT: This uses your NEW consistent fields:
-  /// - riderRequests: riderId, pickupAddress, pickupGeo, destinationAddress, destinationGeo, status
-  /// - riderRequests: matchedDriverId, activeRideId
   Future<String> acceptRequest({required String requestId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
@@ -176,12 +183,11 @@ class RideRepository {
         'paymentStatus': 'unpaid',
       });
 
-      // 2) update request doc
+      // 2) update request doc ✅ MUST be incoming (matches your rules + notifications)
       tx.update(requestRef, {
-        'status': 'accepted',
+        'status': 'incoming',
         'matchedDriverId': driverId,
         'activeRideId': rideRef.id,
-
         'acceptedAt': now,
         'updatedAt': now,
       });
@@ -206,21 +212,21 @@ extension RideStatusTransitions on RideRepository {
     final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
-      final snap = await tx.get(rideRef);
-      if (!snap.exists) throw Exception('Ride not found');
+      // ✅ READ #1 (always)
+      final rideSnap = await tx.get(rideRef);
+      if (!rideSnap.exists) throw Exception('Ride not found');
 
-      final ride = snap.data() as Map<String, dynamic>;
+      final ride = rideSnap.data() as Map<String, dynamic>;
       if (ride['driverID'] != driverId) throw Exception('Not authorized');
 
       final current = (ride['rideStatus'] ?? '').toString();
-
       if (!_isValidTransition(current, nextStatus)) {
         throw Exception('Invalid status transition');
       }
 
       final now = FieldValue.serverTimestamp();
 
-      // ---- 1) update ride status ----
+      // Prepare ride update map (no writes yet)
       final updates = <String, dynamic>{
         'rideStatus': nextStatus,
         'updatedAt': now,
@@ -236,24 +242,26 @@ extension RideStatusTransitions on RideRepository {
         updates['completedAt'] = now;
       }
 
-      tx.update(rideRef, updates);
+      // ✅ If completed, READ request BEFORE ANY WRITE
+      DocumentReference<Map<String, dynamic>>? reqRef;
+      DocumentSnapshot<Map<String, dynamic>>? reqSnap;
 
-      // ---- 2) if completed -> update the related riderRequest too ----
       if (nextStatus == 'completed') {
-        // support both naming just in case you have old docs
         final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
         if (requestId.isNotEmpty) {
-          final reqRef = _db.collection('riderRequests').doc(requestId);
-
-          // Only update if the request exists
-          final reqSnap = await tx.get(reqRef);
-          if (reqSnap.exists) {
-            tx.update(reqRef, {
-              'status': 'completed',
-              'updatedAt': now,
-            });
-          }
+          reqRef = _db.collection('riderRequests').doc(requestId);
+          reqSnap = await tx.get(reqRef); // ✅ READ #2 (still before writes)
         }
+      }
+
+      // ✅ NOW DO WRITES (after all reads)
+      tx.update(rideRef, updates);
+
+      if (nextStatus == 'completed' && reqRef != null && (reqSnap?.exists ?? false)) {
+        tx.update(reqRef, {
+          'status': 'completed',
+          'updatedAt': now,
+        });
       }
     });
   }

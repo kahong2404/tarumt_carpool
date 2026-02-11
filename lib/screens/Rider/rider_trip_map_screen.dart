@@ -170,8 +170,21 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RiderTabScaffold(),
+              ),
+                  (route) => false,
+            );
+          },
+        ),
         title: const Text('Your Ride'),
       ),
+
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
         builder: (context, snap) {

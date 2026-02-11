@@ -39,37 +39,59 @@ class RiderMyRidesScreen extends StatelessWidget {
             const SizedBox(height: 8),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _repo.streamRiderActiveRide(uid),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return _EmptyCard('Active ride error: ${snap.error}');
-                }
-                if (!snap.hasData) {
-                  return const _CardLoading();
-                }
+              builder: (context, rideSnap) {
+                if (rideSnap.hasError) return _EmptyCard('Active ride error: ${rideSnap.error}');
+                if (!rideSnap.hasData) return const _CardLoading();
 
-                final docs = snap.data!.docs;
-                if (docs.isEmpty) {
-                  return const _EmptyCard('No active ride right now.');
-                }
+                final rideDocs = rideSnap.data!.docs;
 
-                final d = docs.first.data();
-                final rideId = docs.first.id;
+                // ✅ If ride exists -> show ride (incoming/ongoing/etc)
+                if (rideDocs.isNotEmpty) {
+                  final d = rideDocs.first.data();
+                  final rideId = rideDocs.first.id;
 
-                return _RideCard(
-                  title: 'Active ride',
-                  status: (d['rideStatus'] ?? '').toString(),
-                  pickup: (d['pickupAddress'] ?? '').toString(),
-                  destination: (d['destinationAddress'] ?? '').toString(),
-                  primaryButtonText: 'Resume',
-                  onPrimary: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RiderTripMapScreen(
-                          rideId: rideId,
-                          autoExitOnCompleted: true,
+                  return _RideCard(
+                    title: 'Active ride',
+                    status: (d['rideStatus'] ?? '').toString(),
+                    pickup: (d['pickupAddress'] ?? '').toString(),
+                    destination: (d['destinationAddress'] ?? '').toString(),
+                    primaryButtonText: 'Resume',
+                    onPrimary: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RiderTripMapScreen(
+                            rideId: rideId,
+                            autoExitOnCompleted: true,
+                          ),
                         ),
-                      ),
+                      );
+                    },
+                  );
+                }
+
+                // ✅ Else: show active request (waiting)
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _repo.streamRiderActiveRequest(uid),
+                  builder: (context, reqSnap) {
+                    if (reqSnap.hasError) return _EmptyCard('Active request error: ${reqSnap.error}');
+                    if (!reqSnap.hasData) return const _CardLoading();
+
+                    final reqDocs = reqSnap.data!.docs;
+                    if (reqDocs.isEmpty) {
+                      return const _EmptyCard('No active ride right now.');
+                    }
+
+                    final r = reqDocs.first.data();
+                    final status = (r['status'] ?? '').toString();
+
+                    return _RideCard(
+                      title: 'Searching driver',
+                      status: status, // will show "waiting"
+                      pickup: (r['pickupAddress'] ?? '').toString(),
+                      destination: (r['destinationAddress'] ?? '').toString(),
+                      primaryButtonText: 'Waiting...',
+                      onPrimary: () {}, // or open a "request tracking" screen
                     );
                   },
                 );

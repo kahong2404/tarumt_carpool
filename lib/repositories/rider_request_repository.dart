@@ -19,7 +19,13 @@ class RiderRequestRepository {
       _db.collection('riderRequests');
 
   /// statuses considered "active" (cannot create another request)
-  static const activeStatuses = ['waiting', 'accepted', 'ongoing', 'scheduled'];
+  static const activeStatuses = [
+    'waiting',
+    'incoming',
+    'arrived_pickup',
+    'ongoing',
+    'arrived_destination',
+  ];
 
   /// ✅ Convert DateTime -> rideDate + rideTime strings
   Map<String, String> _dateTimeToStrings(DateTime dt) {

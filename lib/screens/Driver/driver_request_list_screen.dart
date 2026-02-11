@@ -8,6 +8,7 @@ import '../../repositories/ride_repository.dart';
 import '../../services/driver_presence_service.dart';
 import '../../utils/geo_utils.dart';
 import 'driver_trip_map_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DriverRequestListScreen extends StatefulWidget {
   const DriverRequestListScreen({super.key});
@@ -17,6 +18,9 @@ class DriverRequestListScreen extends StatefulWidget {
 }
 
 class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
+  final _auth = FirebaseAuth.instance;
+  String? get _driverId => _auth.currentUser?.uid;
+
   final _rideRepo = RideRepository();
 
   DriverPresenceService? _presence;
@@ -181,120 +185,132 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
           ),
         ),
       )
-          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('riderRequests')
-            .where('status', isEqualTo: 'waiting')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Firestore error:\n${snapshot.error}',
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            );
-          }
+          : Column(
+        children: [
+          // ✅ Active ride banner/card (top)
+          _ActiveRideSection(
+            driverId: _driverId,
+            rideRepo: _rideRepo,
+          ),
 
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No waiting requests',
-                style: TextStyle(color: Colors.black54),
-              ),
-            );
-          }
-
-          // distance filter
-          final filtered = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-
-          for (final doc in docs) {
-            final d = doc.data();
-            final gp = d['pickupGeo'];
-            if (gp is! GeoPoint) continue;
-
-            final radiusKm = (d['searchRadiusKm'] is num)
-                ? (d['searchRadiusKm'] as num).toDouble()
-                : 2.0;
-
-            final pickup = LatLng(gp.latitude, gp.longitude);
-            final meters = distanceMeters(driverLoc, pickup);
-            final km = meters / 1000.0;
-
-            if (km <= radiusKm) filtered.add(doc);
-          }
-
-          if (filtered.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'No requests in your current area.\nWait for radius to expand...',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54),
-                ),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(14),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final doc = filtered[index];
-              final d = doc.data();
-              final requestId = doc.id;
-
-              final gp = d['pickupGeo'] as GeoPoint;
-              final pickup = LatLng(gp.latitude, gp.longitude);
-
-              final radiusKm = (d['searchRadiusKm'] is num)
-                  ? (d['searchRadiusKm'] as num).toDouble()
-                  : 2.0;
-
-              final meters = distanceMeters(driverLoc, pickup);
-              final km = meters / 1000.0;
-
-              return _RequestCard(
-                pickup: (d['pickupAddress'] ?? '').toString(),
-                destination: (d['destinationAddress'] ?? '').toString(),
-                seats: (d['seatRequested'] ?? 1) as int,
-                radiusKm: radiusKm,
-                distanceKm: km,
-                onAccept: () async {
-                  try {
-                    final rideId = await _rideRepo.acceptRequest(
-                      requestId: requestId,
-                    );
-
-                    if (!context.mounted) return;
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DriverTripMapScreen(rideId: rideId),
+          // ✅ Request list (bottom)
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('riderRequests')
+                  .where('status', isEqualTo: 'waiting')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Firestore error:\n${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
                       ),
+                    ),
+                  );
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No waiting requests',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  );
+                }
+
+                // distance filter
+                final filtered = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                for (final doc in docs) {
+                  final d = doc.data();
+                  final gp = d['pickupGeo'];
+                  if (gp is! GeoPoint) continue;
+
+                  final radiusKm = (d['searchRadiusKm'] is num)
+                      ? (d['searchRadiusKm'] as num).toDouble()
+                      : 2.0;
+
+                  final pickup = LatLng(gp.latitude, gp.longitude);
+                  final meters = distanceMeters(driverLoc, pickup);
+                  final km = meters / 1000.0;
+
+                  if (km <= radiusKm) filtered.add(doc);
+                }
+
+                if (filtered.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No requests in your current area.\nWait for radius to expand...',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(14),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final doc = filtered[index];
+                    final d = doc.data();
+                    final requestId = doc.id;
+
+                    final gp = d['pickupGeo'] as GeoPoint;
+                    final pickup = LatLng(gp.latitude, gp.longitude);
+
+                    final radiusKm = (d['searchRadiusKm'] is num)
+                        ? (d['searchRadiusKm'] as num).toDouble()
+                        : 2.0;
+
+                    final meters = distanceMeters(driverLoc, pickup);
+                    final km = meters / 1000.0;
+
+                    return _RequestCard(
+                      pickup: (d['pickupAddress'] ?? '').toString(),
+                      destination: (d['destinationAddress'] ?? '').toString(),
+                      seats: (d['seatRequested'] ?? 1) as int,
+                      radiusKm: radiusKm,
+                      distanceKm: km,
+                      onAccept: () async {
+                        try {
+                          final rideId = await _rideRepo.acceptRequest(
+                            requestId: requestId,
+                          );
+
+                          if (!context.mounted) return;
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DriverTripMapScreen(rideId: rideId),
+                            ),
+                          );
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed: $e')),
+                          );
+                        }
+                      },
                     );
-                  } catch (e) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed: $e')),
-                    );
-                  }
-                },
-              );
-            },
-          );
-        },
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -361,6 +377,87 @@ class _RequestCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ActiveRideSection extends StatelessWidget {
+  const _ActiveRideSection({
+    required this.driverId,
+    required this.rideRepo,
+  });
+
+  final String? driverId;
+  final RideRepository rideRepo;
+
+  @override
+  Widget build(BuildContext context) {
+    if (driverId == null) return const SizedBox.shrink();
+
+    // ✅ This assumes you already have this stream in RideRepository:
+    // Stream<Ride?> streamDriverActiveRideModel(String driverId)
+    return StreamBuilder(
+      stream: rideRepo.streamDriverActiveRideModel(driverId!),
+      builder: (context, snapshot) {
+        final ride = snapshot.data;
+
+        // No active ride => show nothing
+        if (ride == null) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 8,
+                  color: Colors.black.withOpacity(0.08),
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your Active Ride',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+
+                // Adjust field names based on your Ride model
+                Text('From: ${ride.pickupAddress ?? '-'}'),
+                Text('To: ${ride.destinationAddress ?? '-'}'),
+                const SizedBox(height: 6),
+                Text(
+                  'Status: ${ride.status}',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DriverTripMapScreen(rideId: ride.id),
+                        ),
+                      );
+                    },
+                    child: const Text('Open Active Ride'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
