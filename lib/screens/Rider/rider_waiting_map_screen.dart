@@ -80,7 +80,8 @@ class _RiderWaitingMapScreenState extends State<RiderWaitingMapScreen> {
             }
           },
         ),
-        title: const Text('Waiting for driver'),
+        title: const Text('Waiting for driver', style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color(0xFF1E73FF),
       ),
 
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(

@@ -249,7 +249,8 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
             );
           },
         ),
-        title: const Text('Your Ride'),
+        title: const Text('Your Ride', style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color(0xFF1E73FF),
         actions: [
           IconButton(
             icon: _actionLoading

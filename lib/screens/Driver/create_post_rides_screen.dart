@@ -245,6 +245,7 @@ class _PostRidesState extends State<PostRides> {
       appBar: AppBar(
         leading: const BackButton(),
         title: const Text('Create Post'),
+        backgroundColor: blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

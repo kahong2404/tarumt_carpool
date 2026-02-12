@@ -448,7 +448,8 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trip Navigation'),
+        title: const Text('Trip Navigation', style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color(0xFF1E73FF),
         actions: [
           IconButton(
             icon: const Icon(Icons.cancel),

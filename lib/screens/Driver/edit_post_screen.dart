@@ -166,7 +166,8 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
-        title: const Text('Edit Post'),
+        title: const Text('Edit Post', style: TextStyle(color: Colors.white),),
+        backgroundColor: blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
