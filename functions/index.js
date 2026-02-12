@@ -1,5 +1,5 @@
 /* eslint-disable */
-
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
@@ -305,6 +305,395 @@ exports.onRiderRequestCreatedNotifyDrivers = onDocumentCreated(
     }
   }
 );
+
+// ======================================================
+// 5) ESCROW PAYMENT (Callable Functions)
+// ======================================================
+
+function centsFromRm(rm) {
+  return Math.round(Number(rm) * 100);
+}
+
+function rmFromCents(cents) {
+  return Number(cents) / 100.0;
+}
+
+// Use SAME pricing as your DriverTripMapScreen (server-safe)
+function calcFareRm(km) {
+  const baseFare = 2.0;
+  const ratePerKm = 2.0;
+  const minFare = 3.0;
+  const maxFare = 50.0;
+
+  const raw = baseFare + ratePerKm * km;
+  const withMin = raw < minFare ? minFare : raw;
+  const capped = withMin > maxFare ? maxFare : withMin;
+  return Number(capped.toFixed(2));
+}
+
+function requireSignedIn(req) {
+  if (!req.auth) throw new HttpsError("unauthenticated", "Login required");
+  return req.auth.uid;
+}
+
+async function getUserWalletCents(tx, uid) {
+  const ref = admin.firestore().collection("users").doc(uid);
+  const snap = await tx.get(ref);
+  if (!snap.exists) throw new HttpsError("not-found", "User not found");
+  const data = snap.data() || {};
+  const bal = Number(data.walletBalance || 0);
+  if (!Number.isFinite(bal)) return 0;
+  return Math.floor(bal);
+}
+
+function makeTxDoc(txRef, payload) {
+  return {
+    ...payload,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+// ----------------------------
+// A) acceptRideRequest(requestId)
+// - lock riderRequests waiting -> incoming
+// - create ride
+// - hold rider money (deduct walletBalance)
+// - write wallet tx: ride_hold
+// ----------------------------
+exports.acceptRideRequest = onCall(
+  { region: "asia-southeast1" },
+  async (req) => {
+    const driverId = requireSignedIn(req);
+    const requestId = String(req.data?.requestId || "").trim();
+    if (!requestId) throw new HttpsError("invalid-argument", "Missing requestId");
+
+    const db = admin.firestore();
+    const requests = db.collection("riderRequests");
+    const rides = db.collection("rides");
+    const users = db.collection("users");
+    const txRoot = db.collection("walletTransactions");
+
+    const rideId = await db.runTransaction(async (tx) => {
+      // 1) driver must have no active ride
+      const activeRideSnap = await tx.get(
+        rides
+          .where("driverID", "==", driverId)
+          .where("rideStatus", "in", ["incoming", "arrived_pickup", "ongoing", "arrived_destination"])
+          .limit(1)
+      );
+      if (!activeRideSnap.empty) {
+        throw new HttpsError("failed-precondition", "You already have an active ride.");
+      }
+
+      // 2) lock request
+      const reqRef = requests.doc(requestId);
+      const reqSnap = await tx.get(reqRef);
+      if (!reqSnap.exists) throw new HttpsError("not-found", "Request not found");
+
+      const r = reqSnap.data() || {};
+      const status = str(r.status);
+      if (status !== "waiting") {
+        throw new HttpsError("failed-precondition", "Request is not available.");
+      }
+
+      if (r.matchedDriverId) {
+        throw new HttpsError("failed-precondition", "Request already taken.");
+      }
+
+      const riderId = str(r.riderId);
+      if (!riderId) throw new HttpsError("failed-precondition", "Request missing riderId.");
+
+      const pickupGeo = r.pickupGeo;
+      const destinationGeo = r.destinationGeo;
+      if (!pickupGeo || !destinationGeo) {
+        throw new HttpsError("failed-precondition", "Request missing locations.");
+      }
+
+      // 3) compute hold amount from straight-line distance (server-safe)
+      const km = distanceKm(
+        pickupGeo.latitude,
+        pickupGeo.longitude,
+        destinationGeo.latitude,
+        destinationGeo.longitude
+      );
+
+      const fareRm = calcFareRm(km);
+      const holdCents = centsFromRm(fareRm);
+      if (holdCents <= 0) throw new HttpsError("internal", "Invalid fare.");
+
+      // 4) ensure rider has enough
+      const riderRef = users.doc(riderId);
+      const riderBal = await getUserWalletCents(tx, riderId);
+      if (riderBal < holdCents) {
+        throw new HttpsError("failed-precondition", "Rider has insufficient wallet balance.");
+      }
+
+      // 5) create ride
+      const rideRef = rides.doc();
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      tx.set(rideRef, {
+        requestId,
+        driverID: driverId,
+        riderID: riderId,
+        rideStatus: "incoming",
+
+        pickupAddress: str(r.pickupAddress),
+        destinationAddress: str(r.destinationAddress),
+        pickupGeo,
+        destinationGeo,
+
+        acceptedAt: now,
+        createdAt: now,
+        updatedAt: now,
+
+        // payment / escrow
+        paymentStatus: "held", // held -> paid/refunded
+        holdAmountCents: holdCents,
+        finalFare: rmFromCents(holdCents),
+      });
+
+      // 6) update request -> incoming
+      tx.update(reqRef, {
+        status: "incoming",
+        matchedDriverId: driverId,
+        activeRideId: rideRef.id,
+        acceptedAt: now,
+        updatedAt: now,
+      });
+
+      // 7) deduct rider balance
+      tx.update(riderRef, {
+        walletBalance: riderBal - holdCents,
+        updatedAt: now,
+      });
+
+      // 8) wallet tx record (rider)
+      const riderTxRef = txRoot.doc();
+      tx.set(
+        riderTxRef,
+        makeTxDoc(riderTxRef, {
+          uid: riderId,
+          type: "ride_hold",
+          method: "escrow",
+          title: "Ride (Hold)",
+          amountCents: -holdCents,
+          status: "success",
+          ref: { requestId, rideId: rideRef.id, driverId },
+        })
+      );
+
+      return rideRef.id;
+    });
+
+    return { ok: true, rideId };
+  }
+);
+
+// ----------------------------
+// B) cancelRide(rideId, by)
+// - if paymentStatus==held => refund rider
+// - mark ride cancelled
+// - mark request cancelled
+// ----------------------------
+exports.cancelRide = onCall(
+  { region: "asia-southeast1" },
+  async (req) => {
+    const uid = requireSignedIn(req);
+    const rideId = String(req.data?.rideId || "").trim();
+    const by = String(req.data?.by || "").trim(); // "driver" | "rider"
+    const reason = String(req.data?.reason || "").trim();
+
+    if (!rideId) throw new HttpsError("invalid-argument", "Missing rideId");
+    if (by !== "driver" && by !== "rider") throw new HttpsError("invalid-argument", "Invalid by");
+
+    const db = admin.firestore();
+    const rides = db.collection("rides");
+    const requests = db.collection("riderRequests");
+    const users = db.collection("users");
+    const txRoot = db.collection("walletTransactions");
+
+    await db.runTransaction(async (tx) => {
+      const rideRef = rides.doc(rideId);
+      const rideSnap = await tx.get(rideRef);
+      if (!rideSnap.exists) throw new HttpsError("not-found", "Ride not found");
+
+      const ride = rideSnap.data() || {};
+
+      const driverID = str(ride.driverID);
+      const riderID = str(ride.riderID);
+      if (!driverID || !riderID) throw new HttpsError("failed-precondition", "Ride missing users");
+
+      // only driver or rider can cancel
+      if (uid !== driverID && uid !== riderID) {
+        throw new HttpsError("permission-denied", "Not allowed");
+      }
+
+      const rideStatus = str(ride.rideStatus);
+      if (rideStatus === "completed") {
+        throw new HttpsError("failed-precondition", "Cannot cancel completed ride");
+      }
+      if (rideStatus === "cancelled") return;
+
+      const requestId = str(ride.requestId || ride.requestID);
+      const paymentStatus = str(ride.paymentStatus);
+      const holdCents = Number(ride.holdAmountCents || 0);
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      // refund if held
+      if (paymentStatus === "held" && holdCents > 0) {
+        const riderRef = users.doc(riderID);
+        const bal = await getUserWalletCents(tx, riderID);
+
+        tx.update(riderRef, {
+          walletBalance: bal + holdCents,
+          updatedAt: now,
+        });
+
+        const refundTxRef = txRoot.doc();
+        tx.set(
+          refundTxRef,
+          makeTxDoc(refundTxRef, {
+            uid: riderID,
+            type: "ride_refund",
+            method: "escrow",
+            title: "Ride (Refund)",
+            amountCents: holdCents,
+            status: "success",
+            ref: { rideId, requestId, cancelledBy: by },
+          })
+        );
+      }
+
+      // update ride
+      tx.update(rideRef, {
+        rideStatus: "cancelled",
+        paymentStatus: paymentStatus === "held" ? "refunded" : paymentStatus,
+        cancelledBy: by,
+        cancelReason: reason || null,
+        cancelledAt: now,
+        updatedAt: now,
+      });
+
+      // update request if exists
+      if (requestId) {
+        const reqRef = requests.doc(requestId);
+        const reqSnap = await tx.get(reqRef);
+        if (reqSnap.exists) {
+          tx.update(reqRef, {
+            status: "cancelled",
+            cancelReason: reason || null,
+            updatedAt: now,
+          });
+        }
+      }
+    });
+
+    return { ok: true };
+  }
+);
+
+// ----------------------------
+// C) completeRide(rideId)
+// - only driver can complete
+// - if paymentStatus==held => credit driver
+// - mark ride completed
+// - mark request completed
+// ----------------------------
+exports.completeRide = onCall(
+  { region: "asia-southeast1" },
+  async (req) => {
+    const driverId = requireSignedIn(req);
+    const rideId = String(req.data?.rideId || "").trim();
+    if (!rideId) throw new HttpsError("invalid-argument", "Missing rideId");
+
+    const db = admin.firestore();
+    const rides = db.collection("rides");
+    const requests = db.collection("riderRequests");
+    const users = db.collection("users");
+    const txRoot = db.collection("walletTransactions");
+
+    await db.runTransaction(async (tx) => {
+      const rideRef = rides.doc(rideId);
+      const rideSnap = await tx.get(rideRef);
+      if (!rideSnap.exists) throw new HttpsError("not-found", "Ride not found");
+
+      const ride = rideSnap.data() || {};
+
+      if (str(ride.driverID) !== driverId) {
+        throw new HttpsError("permission-denied", "Only driver can complete");
+      }
+
+      const rideStatus = str(ride.rideStatus);
+      if (rideStatus === "cancelled") {
+        throw new HttpsError("failed-precondition", "Ride already cancelled");
+      }
+      if (rideStatus === "completed") return;
+
+      // (optional strict) allow complete only if arrived_destination
+      // if (rideStatus !== "arrived_destination") throw new HttpsError("failed-precondition", "Not arrived yet");
+
+      const paymentStatus = str(ride.paymentStatus);
+      const holdCents = Number(ride.holdAmountCents || 0);
+      if (holdCents <= 0) throw new HttpsError("failed-precondition", "No held payment");
+
+      const riderID = str(ride.riderID);
+      const driverID = str(ride.driverID);
+      const requestId = str(ride.requestId || ride.requestID);
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      // pay driver once
+      if (paymentStatus === "held") {
+        const driverRef = users.doc(driverID);
+        const driverBal = await getUserWalletCents(tx, driverID);
+
+        tx.update(driverRef, {
+          walletBalance: driverBal + holdCents,
+          updatedAt: now,
+        });
+
+        const earnTxRef = txRoot.doc();
+        tx.set(
+          earnTxRef,
+          makeTxDoc(earnTxRef, {
+            uid: driverID,
+            type: "ride_earning",
+            method: "escrow",
+            title: "Ride (Earning)",
+            amountCents: holdCents,
+            status: "success",
+            ref: { rideId, requestId, riderId: riderID },
+          })
+        );
+      }
+
+      // update ride completed
+      tx.update(rideRef, {
+        rideStatus: "completed",
+        paymentStatus: "paid",
+        completedAt: now,
+        updatedAt: now,
+      });
+
+      // update request completed
+      if (requestId) {
+        const reqRef = requests.doc(requestId);
+        const reqSnap = await tx.get(reqRef);
+        if (reqSnap.exists) {
+          tx.update(reqRef, {
+            status: "completed",
+            updatedAt: now,
+          });
+        }
+      }
+    });
+
+    return { ok: true };
+  }
+);
+
 
 // ✅ Stripe wallet exports (keep yours)
 const stripeWallet = require("./stripe_wallet");

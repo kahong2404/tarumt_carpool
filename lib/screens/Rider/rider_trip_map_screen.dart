@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
 import '../../repositories/ride_repository.dart';
@@ -25,6 +26,9 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   final _rideRepo = RideRepository();
   late final GoogleDirectionsService _directions;
 
+  final _functions =
+  FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+
   GoogleMapController? _mapCtrl;
 
   Set<Marker> _markers = {};
@@ -40,8 +44,9 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   double? _computedFare;
 
   bool _exitDone = false; // ✅ prevent redirect loop
+  bool _actionLoading = false;
 
-  // pricing (same as driver)
+  // pricing (display only)
   static const double _baseFare = 2.00;
   static const double _ratePerKm = 0.80;
   static const double _minFare = 3.00;
@@ -70,6 +75,68 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
         return 'Ride cancelled';
       default:
         return s;
+    }
+  }
+
+  Future<void> _snack(String msg) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<bool> _confirm({
+    required String title,
+    required String message,
+    required String confirmText,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(confirmText),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _cancelRide() async {
+    if (_actionLoading) return;
+
+    final ok = await _confirm(
+      title: 'Cancel ride',
+      message: 'Are you sure you want to cancel this ride?\nIf payment is held, it will be refunded.',
+      confirmText: 'Cancel ride',
+    );
+    if (!ok) return;
+
+    setState(() => _actionLoading = true);
+    try {
+      final callable = _functions.httpsCallable('cancelRide');
+      await callable.call({
+        'rideId': widget.rideId,
+        'by': 'rider',
+        'reason': 'Rider cancelled',
+      });
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const RiderTabScaffold()),
+            (route) => false,
+      );
+    } catch (e) {
+      await _snack('Failed: $e');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
     }
   }
 
@@ -183,8 +250,20 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
           },
         ),
         title: const Text('Your Ride'),
+        actions: [
+          IconButton(
+            icon: _actionLoading
+                ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+                : const Icon(Icons.cancel),
+            onPressed: _actionLoading ? null : _cancelRide,
+            tooltip: 'Cancel ride',
+          ),
+        ],
       ),
-
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
         builder: (context, snap) {
@@ -200,7 +279,7 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
 
           final status = (data['rideStatus'] ?? '').toString();
 
-          // ✅ exit only for active-flow screens, and only once
+          // ✅ exit only once when completed/cancelled
           if (!_exitDone &&
               widget.autoExitOnCompleted &&
               (status == 'completed' || status == 'cancelled')) {
@@ -215,7 +294,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
             });
           }
 
-          // ✅ SAFE GeoPoint read
           final pickupGeo = data['pickupGeo'];
           final destinationGeo = data['destinationGeo'];
 
@@ -229,7 +307,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
           final destinationLatLng =
           LatLng(destinationGeo.latitude, destinationGeo.longitude);
 
-          // ✅ safe driver location
           final liveGeo = data['driverLiveLocation'];
           if (liveGeo is GeoPoint) {
             _driverLatLng = LatLng(liveGeo.latitude, liveGeo.longitude);
@@ -237,7 +314,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
             _driverLatLng = null;
           }
 
-          // markers
           _markers = {
             Marker(
               markerId: const MarkerId('pickup'),
@@ -260,7 +336,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
               ),
           };
 
-          // route decision
           final route = _decideRoute(
             status: status,
             pickup: pickupLatLng,
@@ -279,7 +354,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
               );
             });
           } else {
-            // clear route + meta
             _polylines = {};
             _lastRouteKey = null;
             _routeDistanceKm = null;
@@ -309,7 +383,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                 zoomControlsEnabled: false,
               ),
 
-              // Open Google Maps
               if (route != null)
                 Positioned(
                   left: 16,
@@ -329,7 +402,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                   ),
                 ),
 
-              // Status panel
               Positioned(
                 left: 16,
                 right: 16,

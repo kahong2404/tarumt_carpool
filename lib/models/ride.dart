@@ -158,65 +158,59 @@ class Ride {
     final reviewRaw = (data['reviewId'] ?? '').toString().trim();
     final reviewId = reviewRaw.isEmpty ? null : reviewRaw;
 
+    final requestId =
+    (data['requestId'] ?? data['requestID'] ?? '').toString();
+    final offerIdRaw = data['offerId'] ?? data['offerID'];
+    final offerId = offerIdRaw == null ? null : offerIdRaw.toString();
+
     return Ride(
       id: id,
-      requestId: (data['requestID'] ?? '').toString(),
-      offerId: data['offerID'] == null ? null : (data['offerID']).toString(),
+      requestId: requestId,
+      offerId: offerId,
       driverId: (data['driverID'] ?? '').toString(),
       riderId: (data['riderID'] ?? '').toString(),
-
       status: rideStatusFromString((data['rideStatus'] ?? '').toString()),
-
       pickupAddress: (data['pickupAddress'] ?? '').toString(),
       destinationAddress: (data['destinationAddress'] ?? '').toString(),
       pickupGeo: requireGeo('pickupGeo'),
       destinationGeo: requireGeo('destinationGeo'),
       driverLiveLocation: asGeo('driverLiveLocation'),
-
       acceptedAt: asTs('acceptedAt'),
       createdAt: asTs('createdAt'),
       updatedAt: asTs('updatedAt'),
-
       arrivedPickupAt: asTs('arrivedPickupAt'),
       startedAt: asTs('startedAt'),
       arrivedDestinationAt: asTs('arrivedDestinationAt'),
       completedAt: asTs('completedAt'),
-
       finalFare: asDoubleNullable('finalFare'),
       paymentStatus: (data['paymentStatus'] ?? 'unpaid').toString(),
-
       hasReview: data['hasReview'] == true,
       reviewId: reviewId,
     );
   }
 
   Map<String, dynamic> toMap() {
+    // ✅ Standardize on camelCase keys
     return {
-      'requestID': requestId,
-      'offerID': offerId,
+      'requestId': requestId,
+      'offerId': offerId,
       'driverID': driverId,
       'riderID': riderId,
-
       'rideStatus': rideStatusToString(status),
-
       'pickupAddress': pickupAddress,
       'destinationAddress': destinationAddress,
       'pickupGeo': pickupGeo,
       'destinationGeo': destinationGeo,
       'driverLiveLocation': driverLiveLocation,
-
       'acceptedAt': acceptedAt,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
-
       'arrivedPickupAt': arrivedPickupAt,
       'startedAt': startedAt,
       'arrivedDestinationAt': arrivedDestinationAt,
       'completedAt': completedAt,
-
       'finalFare': finalFare,
       'paymentStatus': paymentStatus,
-
       'hasReview': hasReview,
       'reviewId': reviewId,
     };
