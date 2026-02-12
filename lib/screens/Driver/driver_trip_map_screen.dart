@@ -44,9 +44,9 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   bool _loadingRoute = false;
   bool _actionLoading = false;
 
-  double? _routeDistanceKm;
-  String? _routeDurationText;
-  double? _computedFare;
+  // double? _routeDistanceKm;
+  // String? _routeDurationText;
+  // double? _computedFare;
 
   // Pricing (kept for display only; SERVER is source of truth)
   static const double _baseFare = 2.00;
