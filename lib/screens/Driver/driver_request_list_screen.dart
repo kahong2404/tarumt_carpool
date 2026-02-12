@@ -3,13 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../repositories/ride_repository.dart';
 import '../../services/driver_presence_service.dart';
 import '../../utils/geo_utils.dart';
 import 'driver_trip_map_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DriverRequestListScreen extends StatefulWidget {
   const DriverRequestListScreen({super.key});
@@ -23,8 +22,6 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
   String? get _driverId => _auth.currentUser?.uid;
 
   final _rideRepo = RideRepository();
-
-  final _functions = FirebaseFunctions.instanceFor(region: 'asia-southeast1');
 
   DriverPresenceService? _presence;
   LatLng? _driverLatLng;
@@ -49,7 +46,7 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
       await _presence!.start();
     });
 
-    // Global tick (server-side)
+    // Global tick: activate scheduled + expand radius
     _tickTimer = Timer.periodic(
       const Duration(seconds: _tickEverySeconds),
           (_) => _globalMatchTick(),
@@ -65,22 +62,13 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
     super.dispose();
   }
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
   Future<void> _globalMatchTick() async {
     if (_runningTick) return;
     _runningTick = true;
 
     try {
-      // ✅ Move these writes into Cloud Functions (rules-safe)
-      final activate = _functions.httpsCallable('activateDueScheduledRequests');
-      await activate.call();
-
-      final expand = _functions.httpsCallable('expandDueWaitingRequests');
-      await expand.call({'limit': 50});
+      await _activateDueScheduledRequestsForAllRiders();
+      await _expandDueWaitingRequests();
     } catch (e) {
       debugPrint('❌ global tick failed: $e');
     } finally {
@@ -88,36 +76,87 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
     }
   }
 
-  Future<void> _acceptRequest(String requestId) async {
-    try {
-      final callable = _functions.httpsCallable('acceptRideRequest');
-      final res = await callable.call({'requestId': requestId});
+  Future<void> _activateDueScheduledRequestsForAllRiders() async {
+    final now = Timestamp.fromDate(DateTime.now());
 
-      final data = Map<String, dynamic>.from(res.data as Map);
-      final rideId = (data['rideId'] ?? '').toString();
-      if (rideId.isEmpty) throw StateError('No rideId returned');
+    final snap = await FirebaseFirestore.instance
+        .collection('riderRequests')
+        .where('status', isEqualTo: 'scheduled')
+        .where('scheduledAt', isLessThanOrEqualTo: now)
+        .get();
 
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DriverTripMapScreen(rideId: rideId),
+    if (snap.docs.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {
+        'status': 'waiting',
+        'nextExpandAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(seconds: 30)),
         ),
-      );
-    } catch (e) {
-      _snack('Failed: $e');
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
+    await batch.commit();
+  }
+
+  Future<void> _expandDueWaitingRequests() async {
+    final now = Timestamp.fromDate(DateTime.now());
+
+    final snap = await FirebaseFirestore.instance
+        .collection('riderRequests')
+        .where('status', isEqualTo: 'waiting')
+        .where('nextExpandAt', isLessThanOrEqualTo: now)
+        .limit(50)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final doc in snap.docs) {
+      final d = doc.data();
+
+      final currentRadius = (d['searchRadiusKm'] is num)
+          ? (d['searchRadiusKm'] as num).toDouble()
+          : 2.0;
+
+      final stepKm = (d['searchStepKm'] is num)
+          ? (d['searchStepKm'] as num).toDouble()
+          : 2.0;
+
+      final maxKm = (d['maxRadiusKm'] is num)
+          ? (d['maxRadiusKm'] as num).toDouble()
+          : 20.0;
+
+      if (currentRadius >= maxKm) {
+        batch.update(doc.reference, {
+          'nextExpandAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(seconds: 60)),
+          ),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        continue;
+      }
+
+      final newRadius = currentRadius + stepKm;
+      final clamped = newRadius > maxKm ? maxKm : newRadius;
+
+      batch.update(doc.reference, {
+        'searchRadiusKm': clamped,
+        'nextExpandAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(seconds: 30)),
+        ),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
   }
 
   @override
   Widget build(BuildContext context) {
     final driverLoc = _driverLatLng;
-
-    if (_driverId == null) {
-      return const Scaffold(
-        body: Center(child: Text('Not logged in')),
-      );
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -129,7 +168,9 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
             onPressed: () async {
               await _globalMatchTick();
               if (!mounted) return;
-              _snack('Requests updated');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Requests updated')),
+              );
             },
           ),
         ],
@@ -148,7 +189,7 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
         children: [
           // ✅ Active ride banner/card (top)
           _ActiveRideSection(
-            driverId: _driverId!,
+            driverId: _driverId,
             rideRepo: _rideRepo,
           ),
 
@@ -239,12 +280,30 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
                     return _RequestCard(
                       pickup: (d['pickupAddress'] ?? '').toString(),
                       destination: (d['destinationAddress'] ?? '').toString(),
-                      seats: (d['seatRequested'] is int)
-                          ? (d['seatRequested'] as int)
-                          : int.tryParse('${d['seatRequested']}') ?? 1,
+                      seats: (d['seatRequested'] ?? 1) as int,
                       radiusKm: radiusKm,
                       distanceKm: km,
-                      onAccept: () => _acceptRequest(requestId),
+                      onAccept: () async {
+                        try {
+                          final rideId = await _rideRepo.acceptRequest(
+                            requestId: requestId,
+                          );
+
+                          if (!context.mounted) return;
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DriverTripMapScreen(rideId: rideId),
+                            ),
+                          );
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed: $e')),
+                          );
+                        }
+                      },
                     );
                   },
                 );
@@ -328,16 +387,21 @@ class _ActiveRideSection extends StatelessWidget {
     required this.rideRepo,
   });
 
-  final String driverId;
+  final String? driverId;
   final RideRepository rideRepo;
 
   @override
   Widget build(BuildContext context) {
+    if (driverId == null) return const SizedBox.shrink();
+
+    // ✅ This assumes you already have this stream in RideRepository:
+    // Stream<Ride?> streamDriverActiveRideModel(String driverId)
     return StreamBuilder(
-      stream: rideRepo.streamDriverActiveRideModel(driverId),
+      stream: rideRepo.streamDriverActiveRideModel(driverId!),
       builder: (context, snapshot) {
         final ride = snapshot.data;
 
+        // No active ride => show nothing
         if (ride == null) return const SizedBox.shrink();
 
         return Padding(
@@ -364,12 +428,12 @@ class _ActiveRideSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
 
-                Text('From: ${ride.pickupAddress}'),
-                Text('To: ${ride.destinationAddress}'),
+                // Adjust field names based on your Ride model
+                Text('From: ${ride.pickupAddress ?? '-'}'),
+                Text('To: ${ride.destinationAddress ?? '-'}'),
                 const SizedBox(height: 6),
-
                 Text(
-                  'Status: ${ride.status.name}',
+                  'Status: ${ride.status}',
                   style: const TextStyle(color: Colors.black54),
                 ),
 

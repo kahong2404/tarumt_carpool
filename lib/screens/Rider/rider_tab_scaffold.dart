@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/repositories/ride_repository.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_home_content.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_my_ride_screen.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_notification_screen.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_trip_map_screen.dart';
 import '../profile/dashboard/rider_profile_dashboard.dart';
 class RiderTabScaffold extends StatefulWidget {
@@ -78,7 +79,7 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
           children: [
             const RiderHomeContent(),                // Tab 0
             RiderMyRidesScreen(),// Tab 1
-            const _PlaceholderTab(title: 'Notifications'), // Tab 2
+            RiderNotificationsScreen(),
             RiderProfileDashboard(),                 // ✅ Tab 3 (Profile)
           ],
         ),

@@ -1,10 +1,8 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../repositories/ride_repository.dart';
 import '../../services/driver_live_location_service.dart';
@@ -15,7 +13,7 @@ class DriverTripMapScreen extends StatefulWidget {
   const DriverTripMapScreen({
     super.key,
     required this.rideId,
-    this.enableDistanceGate = true, // ✅ set false for testing
+    this.enableDistanceGate = true,
   });
 
   final String rideId;
@@ -31,9 +29,6 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   late final DriverLiveLocationService _liveLocationSvc;
   late final GoogleDirectionsService _directions;
 
-  final _functions =
-  FirebaseFunctions.instanceFor(region: 'asia-southeast1');
-
   GoogleMapController? _mapCtrl;
 
   Set<Marker> _markers = {};
@@ -44,17 +39,17 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   bool _loadingRoute = false;
   bool _actionLoading = false;
 
-  // double? _routeDistanceKm;
-  // String? _routeDurationText;
-  // double? _computedFare;
+  double? _routeDistanceKm;
+  String? _routeDurationText;
+  double? _computedFare;
 
-  // Pricing (kept for display only; SERVER is source of truth)
+  // Pricing
   static const double _baseFare = 2.00;
   static const double _ratePerKm = 2.00;
   static const double _minFare = 3.00;
   static const double _maxFare = 50.00;
 
-  // Distance gate thresholds (you set huge for testing)
+  // Distance gate thresholds
   static const double _arriveRadiusMeters = 99999999999.0;
   static const double _completeRadiusMeters = 99999999999.0;
 
@@ -68,11 +63,9 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   @override
   void initState() {
     super.initState();
-
     _directions = GoogleDirectionsService(
       'AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA',
     );
-
     _liveLocationSvc = DriverLiveLocationService(widget.rideId);
     _liveLocationSvc.start();
   }
@@ -87,25 +80,6 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  String _prettyStatus(String s) {
-    switch (s) {
-      case 'incoming':
-        return 'Driver is coming';
-      case 'arrived_pickup':
-        return 'Arrived at pickup';
-      case 'ongoing':
-        return 'On the way';
-      case 'arrived_destination':
-        return 'Arrived at destination';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return s;
-    }
   }
 
   Future<bool> _confirmDialog({
@@ -157,6 +131,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   }
 
   Future<void> _doTransition({
+    required String rideId,
     required String nextStatus,
     required String title,
     required String message,
@@ -166,7 +141,6 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   }) async {
     if (_actionLoading) return;
 
-    // ✅ distance gate (can be disabled for testing)
     if (widget.enableDistanceGate && gateTarget != null && gateMeters != null) {
       if (_driverLatLng == null) {
         await _tooFarDialog(
@@ -197,9 +171,8 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
 
     setState(() => _actionLoading = true);
     try {
-      // ✅ For normal status steps, still client updates allowed by rules
       await _rideRepo.updateRideStatus(
-        rideId: widget.rideId,
+        rideId: rideId,
         nextStatus: nextStatus,
       );
     } catch (e) {
@@ -209,78 +182,26 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     }
   }
 
-  // ✅ Completion must be server function (pays driver + marks completed + request completed)
-  Future<void> _doCompleteRide({
-    required LatLng destination,
-    required double gateMeters,
-  }) async {
+  // ✅ NEW: driver cancel ride
+  Future<void> _cancelRide(String status) async {
     if (_actionLoading) return;
 
-    if (widget.enableDistanceGate) {
-      if (_driverLatLng == null) {
-        await _tooFarDialog(
-          title: 'No live location yet',
-          metersAway: 9999,
-          requiredMeters: gateMeters,
-        );
-        return;
-      }
-
-      final metersAway = distanceMeters(_driverLatLng!, destination);
-      if (metersAway > gateMeters) {
-        await _tooFarDialog(
-          title: 'Too far to complete',
-          metersAway: metersAway,
-          requiredMeters: gateMeters,
-        );
-        return;
-      }
+    final canCancel = status == 'incoming' || status == 'arrived_pickup';
+    if (!canCancel) {
+      _snack('Cannot cancel after trip starts');
+      return;
     }
 
     final ok = await _confirmDialog(
-      title: 'Complete ride',
-      message: 'Confirm to complete this ride?\nPayment will be released to you.',
-      confirmText: 'Complete',
+      title: 'Cancel ride?',
+      message: 'This will cancel the ride for the rider as well.',
+      confirmText: 'Cancel Ride',
     );
     if (!ok) return;
 
     setState(() => _actionLoading = true);
     try {
-      final callable = _functions.httpsCallable('completeRide');
-      await callable.call({'rideId': widget.rideId});
-
-      // The stream will update rideStatus => completed
-      // Optional: stop live location
-      await _liveLocationSvc.stop();
-    } catch (e) {
-      _snack('Failed: $e');
-    } finally {
-      if (mounted) setState(() => _actionLoading = false);
-    }
-  }
-
-  // ✅ Cancel must be server function (refund if held + marks cancelled)
-  Future<void> _doCancelRide() async {
-    if (_actionLoading) return;
-
-    final ok = await _confirmDialog(
-      title: 'Cancel ride',
-      message: 'Are you sure you want to cancel this ride?',
-      confirmText: 'Cancel ride',
-    );
-    if (!ok) return;
-
-    setState(() => _actionLoading = true);
-    try {
-      final callable = _functions.httpsCallable('cancelRide');
-      await callable.call({
-        'rideId': widget.rideId,
-        'by': 'driver',
-        'reason': 'Driver cancelled',
-      });
-
-      await _liveLocationSvc.stop();
-
+      await _rideRepo.cancelRideByDriver(rideId: widget.rideId);
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
@@ -378,6 +299,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     if (status == 'incoming') {
       buttonText = 'I arrived at pickup';
       onPressed = () => _doTransition(
+        rideId: widget.rideId,
         nextStatus: 'arrived_pickup',
         title: 'Confirm arrival',
         message: 'Confirm you arrived at pickup?',
@@ -388,6 +310,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     } else if (status == 'arrived_pickup') {
       buttonText = 'Start trip';
       onPressed = () => _doTransition(
+        rideId: widget.rideId,
         nextStatus: 'ongoing',
         title: 'Start trip',
         message: 'Confirm to start the trip now?',
@@ -396,6 +319,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     } else if (status == 'ongoing') {
       buttonText = 'Arrived at destination';
       onPressed = () => _doTransition(
+        rideId: widget.rideId,
         nextStatus: 'arrived_destination',
         title: 'Confirm arrival',
         message: 'Confirm you arrived at destination?',
@@ -405,8 +329,13 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
       );
     } else if (status == 'arrived_destination') {
       buttonText = 'Complete ride';
-      onPressed = () => _doCompleteRide(
-        destination: destination,
+      onPressed = () => _doTransition(
+        rideId: widget.rideId,
+        nextStatus: 'completed',
+        title: 'Complete ride',
+        message: 'Confirm to complete this ride?',
+        confirmText: 'Complete',
+        gateTarget: destination,
         gateMeters: _completeRadiusMeters,
       );
     }
@@ -447,17 +376,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Trip Navigation', style: TextStyle(color: Colors.white),),
-        backgroundColor: const Color(0xFF1E73FF),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.cancel),
-            onPressed: _actionLoading ? null : _doCancelRide,
-            tooltip: 'Cancel ride',
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Trip Navigation')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
         builder: (context, snap) {
@@ -579,14 +498,41 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
                   ),
                 ),
 
+              // ✅ NEW: cancel ride button (only before ongoing)
+              if (status == 'incoming' || status == 'arrived_pickup')
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: actionBar == null ? 20 : 140,
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _actionLoading ? null : () => _cancelRide(status),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      child: _actionLoading
+                          ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                          : const Text(
+                        'Cancel Ride',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               if (actionBar != null) actionBar,
 
               Positioned(
                 top: 12,
                 right: 12,
                 child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: widget.enableDistanceGate
                         ? Colors.black.withOpacity(0.35)
@@ -598,28 +544,6 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Optional status chip
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    _prettyStatus(status),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
                       fontSize: 12,
                     ),
                   ),

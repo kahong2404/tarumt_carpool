@@ -77,7 +77,7 @@ class Ride {
 
   // payment
   final double? finalFare;
-  final String paymentStatus; // e.g. unpaid / paid
+  final String paymentStatus; // e.g. unpaid / paid / held (later)
 
   // review
   final bool hasReview;
@@ -108,9 +108,6 @@ class Ride {
     required this.reviewId,
   });
 
-  // ----------------------------
-  // Convenience
-  // ----------------------------
   bool get isActive =>
       status == RideStatus.incoming ||
           status == RideStatus.arrivedPickup ||
@@ -120,11 +117,10 @@ class Ride {
   bool get isCompleted => status == RideStatus.completed;
 
   bool get canWriteReview => isCompleted && !hasReview;
-  bool get canViewReview => isCompleted && (reviewId != null && reviewId!.trim().isNotEmpty);
 
-  // ----------------------------
-  // Firestore mapping
-  // ----------------------------
+  bool get canViewReview =>
+      isCompleted && (reviewId != null && reviewId!.trim().isNotEmpty);
+
   factory Ride.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) throw StateError('Ride doc ${doc.id} has no data');
@@ -158,6 +154,7 @@ class Ride {
     final reviewRaw = (data['reviewId'] ?? '').toString().trim();
     final reviewId = reviewRaw.isEmpty ? null : reviewRaw;
 
+    // ✅ KEY FIX: support both old and new keys
     final requestId =
     (data['requestId'] ?? data['requestID'] ?? '').toString();
     final offerIdRaw = data['offerId'] ?? data['offerID'];

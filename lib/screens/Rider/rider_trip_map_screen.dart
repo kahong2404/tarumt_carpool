@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
 import '../../repositories/ride_repository.dart';
@@ -12,7 +11,7 @@ class RiderTripMapScreen extends StatefulWidget {
   const RiderTripMapScreen({
     super.key,
     required this.rideId,
-    this.autoExitOnCompleted = true, // ✅ default true
+    this.autoExitOnCompleted = true,
   });
 
   final String rideId;
@@ -25,9 +24,6 @@ class RiderTripMapScreen extends StatefulWidget {
 class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   final _rideRepo = RideRepository();
   late final GoogleDirectionsService _directions;
-
-  final _functions =
-  FirebaseFunctions.instanceFor(region: 'asia-southeast1');
 
   GoogleMapController? _mapCtrl;
 
@@ -43,10 +39,9 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   String? _routeDurationText;
   double? _computedFare;
 
-  bool _exitDone = false; // ✅ prevent redirect loop
-  bool _actionLoading = false;
+  bool _exitDone = false;
+  bool _cancelLoading = false;
 
-  // pricing (display only)
   static const double _baseFare = 2.00;
   static const double _ratePerKm = 0.80;
   static const double _minFare = 3.00;
@@ -75,68 +70,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
         return 'Ride cancelled';
       default:
         return s;
-    }
-  }
-
-  Future<void> _snack(String msg) async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<bool> _confirm({
-    required String title,
-    required String message,
-    required String confirmText,
-  }) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmText),
-          ),
-        ],
-      ),
-    );
-    return ok == true;
-  }
-
-  Future<void> _cancelRide() async {
-    if (_actionLoading) return;
-
-    final ok = await _confirm(
-      title: 'Cancel ride',
-      message: 'Are you sure you want to cancel this ride?\nIf payment is held, it will be refunded.',
-      confirmText: 'Cancel ride',
-    );
-    if (!ok) return;
-
-    setState(() => _actionLoading = true);
-    try {
-      final callable = _functions.httpsCallable('cancelRide');
-      await callable.call({
-        'rideId': widget.rideId,
-        'by': 'rider',
-        'reason': 'Rider cancelled',
-      });
-
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const RiderTabScaffold()),
-            (route) => false,
-      );
-    } catch (e) {
-      await _snack('Failed: $e');
-    } finally {
-      if (mounted) setState(() => _actionLoading = false);
     }
   }
 
@@ -233,6 +166,49 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
     }
   }
 
+  Future<bool> _confirmCancel() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel ride?'),
+        content: const Text('This will cancel the ride.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel Ride'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _cancelRideAsRider(String status) async {
+    if (_cancelLoading) return;
+
+    if (status != 'incoming') return;
+
+    final ok = await _confirmCancel();
+    if (!ok) return;
+
+    setState(() => _cancelLoading = true);
+    try {
+      await _rideRepo.cancelRideByRider(rideId: widget.rideId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cancelLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -242,28 +218,12 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
           onPressed: () {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(
-                builder: (_) => const RiderTabScaffold(),
-              ),
+              MaterialPageRoute(builder: (_) => const RiderTabScaffold()),
                   (route) => false,
             );
           },
         ),
-        title: const Text('Your Ride', style: TextStyle(color: Colors.white),),
-        backgroundColor: const Color(0xFF1E73FF),
-        actions: [
-          IconButton(
-            icon: _actionLoading
-                ? const SizedBox(
-              height: 18,
-              width: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-                : const Icon(Icons.cancel),
-            onPressed: _actionLoading ? null : _cancelRide,
-            tooltip: 'Cancel ride',
-          ),
-        ],
+        title: const Text('Your Ride'),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
@@ -280,7 +240,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
 
           final status = (data['rideStatus'] ?? '').toString();
 
-          // ✅ exit only once when completed/cancelled
           if (!_exitDone &&
               widget.autoExitOnCompleted &&
               (status == 'completed' || status == 'cancelled')) {
@@ -297,7 +256,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
 
           final pickupGeo = data['pickupGeo'];
           final destinationGeo = data['destinationGeo'];
-
           if (pickupGeo is! GeoPoint || destinationGeo is! GeoPoint) {
             return const Center(
               child: Text('Ride data missing pickup or destination'),
@@ -440,6 +398,38 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                             _InfoChip(label: 'Fare', value: fareText),
                         ],
                       ),
+
+                      // ✅ NEW: rider cancel only while incoming
+                      if (status == 'incoming')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: ElevatedButton(
+                              onPressed: _cancelLoading
+                                  ? null
+                                  : () => _cancelRideAsRider(status),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              child: _cancelLoading
+                                  ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              )
+                                  : const Text(
+                                'Cancel Ride',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

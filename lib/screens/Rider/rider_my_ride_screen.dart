@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../repositories/ride_repository.dart';
 import 'rider_trip_map_screen.dart';
+import 'rider_waiting_map_screen.dart'; // ✅ NEW: import waiting screen
 
 // ✅ Review screens
 import '../reviews/rider_submit_review_screen.dart';
@@ -34,18 +35,21 @@ class RiderMyRidesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // ✅ ACTIVE RIDE
+            // ✅ ACTIVE
             const _SectionTitle('Active ride'),
             const SizedBox(height: 8),
+
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _repo.streamRiderActiveRide(uid),
               builder: (context, rideSnap) {
-                if (rideSnap.hasError) return _EmptyCard('Active ride error: ${rideSnap.error}');
+                if (rideSnap.hasError) {
+                  return _EmptyCard('Active ride error: ${rideSnap.error}');
+                }
                 if (!rideSnap.hasData) return const _CardLoading();
 
                 final rideDocs = rideSnap.data!.docs;
 
-                // ✅ If ride exists -> show ride (incoming/ongoing/etc)
+                // ✅ If active ride exists -> show ride (incoming/ongoing/etc)
                 if (rideDocs.isNotEmpty) {
                   final d = rideDocs.first.data();
                   final rideId = rideDocs.first.id;
@@ -70,11 +74,13 @@ class RiderMyRidesScreen extends StatelessWidget {
                   );
                 }
 
-                // ✅ Else: show active request (waiting)
+                // ✅ Else: show active request (waiting/scheduled/incoming)
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _repo.streamRiderActiveRequest(uid),
                   builder: (context, reqSnap) {
-                    if (reqSnap.hasError) return _EmptyCard('Active request error: ${reqSnap.error}');
+                    if (reqSnap.hasError) {
+                      return _EmptyCard('Active request error: ${reqSnap.error}');
+                    }
                     if (!reqSnap.hasData) return const _CardLoading();
 
                     final reqDocs = reqSnap.data!.docs;
@@ -82,16 +88,59 @@ class RiderMyRidesScreen extends StatelessWidget {
                       return const _EmptyCard('No active ride right now.');
                     }
 
-                    final r = reqDocs.first.data();
+                    final reqDoc = reqDocs.first;
+                    final r = reqDoc.data();
+
+                    final requestId = reqDoc.id;
                     final status = (r['status'] ?? '').toString();
+                    final activeRideId = (r['activeRideId'] ?? '').toString();
+
+                    // ✅ Decide where "Resume" should go
+                    VoidCallback? onPrimary;
+                    String primaryText = 'Resume';
+
+                    if (status == 'waiting' || status == 'scheduled') {
+                      primaryText = 'Resume Waiting';
+                      onPrimary = () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RiderWaitingMapScreen(
+                              requestId: requestId,
+                            ),
+                          ),
+                        );
+                      };
+                    } else if (status == 'incoming' && activeRideId.isNotEmpty) {
+                      primaryText = 'Open Ride';
+                      onPrimary = () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RiderTripMapScreen(
+                              rideId: activeRideId,
+                              autoExitOnCompleted: true,
+                            ),
+                          ),
+                        );
+                      };
+                    } else {
+                      // fallback (rare)
+                      primaryText = 'Waiting...';
+                      onPrimary = null;
+                    }
 
                     return _RideCard(
-                      title: 'Searching driver',
-                      status: status, // will show "waiting"
+                      title: status == 'scheduled'
+                          ? 'Scheduled request'
+                          : (status == 'waiting' ? 'Searching driver' : 'Driver found'),
+                      status: status,
                       pickup: (r['pickupAddress'] ?? '').toString(),
                       destination: (r['destinationAddress'] ?? '').toString(),
-                      primaryButtonText: 'Waiting...',
-                      onPrimary: () {}, // or open a "request tracking" screen
+                      primaryButtonText: primaryText,
+                      onPrimary: onPrimary ?? () {}, // keeps UI safe
+                      // optional: if disabled
+                      primaryDisabled: onPrimary == null,
                     );
                   },
                 );
@@ -125,7 +174,6 @@ class RiderMyRidesScreen extends StatelessWidget {
 
                     final status = (d['rideStatus'] ?? '').toString();
 
-                    // ✅ safe reads from Firestore
                     final hasReview = (d['hasReview'] == true);
                     final reviewId = (d['reviewId'] ?? '').toString().trim();
 
@@ -139,8 +187,6 @@ class RiderMyRidesScreen extends StatelessWidget {
                         status: status,
                         pickup: (d['pickupAddress'] ?? '').toString(),
                         destination: (d['destinationAddress'] ?? '').toString(),
-
-                        // primary = always view trip
                         primaryButtonText: 'View',
                         onPrimary: () {
                           Navigator.push(
@@ -153,12 +199,9 @@ class RiderMyRidesScreen extends StatelessWidget {
                             ),
                           );
                         },
-
-                        // secondary = review logic
                         secondaryButtonText: canWrite
                             ? 'Write Review'
                             : (canViewReview ? 'View Review' : null),
-
                         onSecondary: canWrite
                             ? () {
                           Navigator.push(
@@ -216,6 +259,7 @@ class _RideCard extends StatelessWidget {
     required this.destination,
     required this.primaryButtonText,
     required this.onPrimary,
+    this.primaryDisabled = false,
     this.secondaryButtonText,
     this.onSecondary,
   });
@@ -227,13 +271,17 @@ class _RideCard extends StatelessWidget {
 
   final String primaryButtonText;
   final VoidCallback onPrimary;
+  final bool primaryDisabled;
 
-  // ✅ optional second button
   final String? secondaryButtonText;
   final VoidCallback? onSecondary;
 
   String _prettyStatus(String s) {
     switch (s) {
+      case 'scheduled':
+        return 'Scheduled';
+      case 'waiting':
+        return 'Waiting';
       case 'incoming':
         return 'Incoming';
       case 'arrived_pickup':
@@ -294,7 +342,7 @@ class _RideCard extends StatelessWidget {
                 child: SizedBox(
                   height: 44,
                   child: ElevatedButton(
-                    onPressed: onPrimary,
+                    onPressed: primaryDisabled ? null : onPrimary,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primary,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
