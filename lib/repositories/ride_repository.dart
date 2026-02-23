@@ -20,6 +20,8 @@ class RideRepository {
 
   CollectionReference<Map<String, dynamic>> get _rides => _db.collection('rides');
 
+  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+
   // ----------------------------
   // OOP STREAMS (Recommended)
   // ----------------------------
@@ -50,8 +52,7 @@ class RideRepository {
     return _rides.doc(rideId).snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverActiveRide(
-      String driverId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverActiveRide(String driverId) {
     return _rides
         .where('driverID', isEqualTo: driverId)
         .where('rideStatus', whereIn: activeStatuses)
@@ -60,8 +61,7 @@ class RideRepository {
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRequest(
-      String riderId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRequest(String riderId) {
     return _db
         .collection('riderRequests')
         .where('riderId', isEqualTo: riderId)
@@ -71,8 +71,7 @@ class RideRepository {
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverRideHistory(
-      String driverId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverRideHistory(String driverId) {
     return _rides
         .where('driverID', isEqualTo: driverId)
         .where('rideStatus', whereIn: const ['completed', 'cancelled'])
@@ -81,8 +80,7 @@ class RideRepository {
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRide(
-      String riderId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderActiveRide(String riderId) {
     return _rides
         .where('riderID', isEqualTo: riderId)
         .where('rideStatus', whereIn: activeStatuses)
@@ -91,8 +89,7 @@ class RideRepository {
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderRideHistory(
-      String riderId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamRiderRideHistory(String riderId) {
     return _rides
         .where('riderID', isEqualTo: riderId)
         .where('rideStatus', whereIn: const ['completed', 'cancelled'])
@@ -102,19 +99,24 @@ class RideRepository {
   }
 
   // ----------------------------
-  // ACCEPT REQUEST (BLOCK MULTI-ACCEPT)
+  // ACCEPT REQUEST (COPY finalFare + HOLD)
   // ----------------------------
   /// Flow:
   /// riderRequests.status: waiting -> incoming
   /// rides.rideStatus: incoming
+  ///
+  /// ✅ ALSO:
+  /// - copy riderRequests.finalFare -> rides.finalFare
+  /// - "hold" = deduct rider walletBalance immediately
+  /// - store hold info in riderRequests.hold (hidden)
   Future<String> acceptRequest({required String requestId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
-    final driverId = user.uid;
+    final currentDriverId = user.uid;
 
     // ✅ PRE-CHECK: driver can't accept if already has active ride
     final activeRideSnap = await _rides
-        .where('driverID', isEqualTo: driverId)
+        .where('driverID', isEqualTo: currentDriverId)
         .where('rideStatus', whereIn: activeStatuses)
         .limit(1)
         .get();
@@ -123,22 +125,21 @@ class RideRepository {
       throw Exception('You already have an active ride.');
     }
 
-    // ✅ TRANSACTION (locks request)
     return _db.runTransaction<String>((tx) async {
+      // --------------------
+      // READS (before writes)
+      // --------------------
       final requestRef = _requests.doc(requestId);
       final requestSnap = await tx.get(requestRef);
-
       if (!requestSnap.exists) throw Exception('Request not found');
 
       final req = requestSnap.data()!;
       final status = (req['status'] ?? '').toString();
 
-      // Only allow accepting if still waiting
       if (status != 'waiting') {
         throw Exception('Request already accepted/cancelled/expired');
       }
 
-      // If some old logic already wrote matchedDriverId, block.
       final existingMatched = req['matchedDriverId'];
       if (existingMatched != null && existingMatched.toString().isNotEmpty) {
         throw Exception('Request already taken by another driver.');
@@ -147,7 +148,6 @@ class RideRepository {
       final riderId = (req['riderId'] ?? '').toString();
       if (riderId.isEmpty) throw Exception('Request missing riderId');
 
-      // copy fields (must exist)
       final pickupAddress = (req['pickupAddress'] ?? '').toString();
       final destinationAddress = (req['destinationAddress'] ?? '').toString();
       final pickupGeo = req['pickupGeo'];
@@ -157,43 +157,83 @@ class RideRepository {
         throw Exception('Request missing pickup/destination GeoPoint');
       }
 
+      // ✅ finalFare must already exist in riderRequests (cents int)
+      final fareCents = (req['finalFare'] as num?)?.toInt();
+      if (fareCents == null || fareCents <= 0) {
+        throw Exception('Fare not ready yet. Please try again.');
+      }
+
+      // ✅ prevent double hold
+      final holdMap = (req['hold'] is Map)
+          ? Map<String, dynamic>.from(req['hold'] as Map)
+          : null;
+      final holdStatus = (holdMap?['status'] ?? 'none').toString();
+      if (holdStatus == 'held' || holdStatus == 'released') {
+        throw Exception('This request already has a payment hold.');
+      }
+
+      // ✅ read rider wallet
+      final riderRef = _users.doc(riderId);
+      final riderSnap = await tx.get(riderRef);
+      if (!riderSnap.exists) throw Exception('Rider not found');
+
+      final riderData = riderSnap.data() as Map<String, dynamic>;
+      final riderWallet = (riderData['walletBalance'] as num?)?.toInt() ?? 0;
+
+      if (riderWallet < fareCents) {
+        throw Exception('Rider wallet balance is not enough.');
+      }
+
+      // --------------------
+      // WRITES
+      // --------------------
       final rideRef = _rides.doc();
       final now = FieldValue.serverTimestamp();
 
-      // 1) create ride
+      // 1) create ride (✅ copy finalFare)
       tx.set(rideRef, {
-        // relations
         'requestId': requestId,
         'offerId': null,
-        'driverID': driverId,
+        'driverID': currentDriverId,
         'riderID': riderId,
 
-        // status
         'rideStatus': 'incoming',
 
-        // copied location data
         'pickupAddress': pickupAddress,
         'destinationAddress': destinationAddress,
         'pickupGeo': pickupGeo,
         'destinationGeo': destinationGeo,
 
-        // timestamps
         'acceptedAt': now,
         'createdAt': now,
         'updatedAt': now,
 
-        // payment
-        'finalFare': null,
-        'paymentStatus': 'unpaid',
+        // ✅ payment
+        'finalFare': fareCents,     // cents
+        'paymentStatus': 'held',    // held
       });
 
-      // 2) update request doc
+      // 2) deduct rider wallet immediately (hold)
+      tx.update(riderRef, {
+        'walletBalance': riderWallet - fareCents,
+        'updatedAt': now,
+      });
+
+      // 3) update request doc (status + hidden hold)
       tx.update(requestRef, {
         'status': 'incoming',
-        'matchedDriverId': driverId,
+        'matchedDriverId': currentDriverId,
         'activeRideId': rideRef.id,
         'acceptedAt': now,
         'updatedAt': now,
+
+        'hold': {
+          'status': 'held',
+          'amount': fareCents,
+          'heldAt': now,
+          'releasedAt': null,
+          'refundedAt': null,
+        },
       });
 
       return rideRef.id;
@@ -202,7 +242,7 @@ class RideRepository {
 }
 
 // =====================================================
-// STATUS TRANSITIONS
+// STATUS TRANSITIONS (✅ RELEASE ON COMPLETED)
 // =====================================================
 extension RideStatusTransitions on RideRepository {
   Future<void> updateRideStatus({
@@ -211,17 +251,22 @@ extension RideStatusTransitions on RideRepository {
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
-    final driverId = user.uid;
+    final currentDriverId = user.uid;
 
     final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
-      // ✅ READ #1 (always)
+      // --------------------
+      // READS (before writes)
+      // --------------------
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
       final ride = rideSnap.data() as Map<String, dynamic>;
-      if (ride['driverID'] != driverId) throw Exception('Not authorized');
+
+      // ✅ Only driver of this ride can update status
+      final rideDriverId = (ride['driverID'] ?? '').toString();
+      if (rideDriverId != currentDriverId) throw Exception('Not authorized');
 
       final current = (ride['rideStatus'] ?? '').toString();
       if (!_isValidTransition(current, nextStatus)) {
@@ -230,6 +275,55 @@ extension RideStatusTransitions on RideRepository {
 
       final now = FieldValue.serverTimestamp();
 
+      // Completed extra reads
+      DocumentReference<Map<String, dynamic>>? reqRef;
+      DocumentSnapshot<Map<String, dynamic>>? reqSnap;
+      DocumentReference<Map<String, dynamic>>? driverRef;
+      DocumentSnapshot<Map<String, dynamic>>? driverSnap;
+
+      int? fareCents;
+      Map<String, dynamic>? hold;
+
+      if (nextStatus == 'completed') {
+        // ✅ prevent double release
+        final currentPay = (ride['paymentStatus'] ?? '').toString();
+        if (currentPay == 'released') throw Exception('Payment already released.');
+        if (currentPay == 'refunded') throw Exception('Payment already refunded.');
+
+        final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+        if (requestId.isEmpty) throw Exception('Ride missing requestId');
+
+        reqRef = _db.collection('riderRequests').doc(requestId);
+        reqSnap = await tx.get(reqRef);
+        if (!reqSnap.exists) throw Exception('Request not found');
+
+        final reqData = reqSnap.data()!;
+        hold = (reqData['hold'] is Map)
+            ? Map<String, dynamic>.from(reqData['hold'] as Map)
+            : null;
+
+        final holdStatus = (hold?['status'] ?? 'none').toString();
+        if (holdStatus != 'held') {
+          throw Exception('No held payment to release.');
+        }
+
+        // fare from ride preferred
+        fareCents = (ride['finalFare'] as num?)?.toInt()
+            ?? (hold?['amount'] as num?)?.toInt();
+
+        if (fareCents == null || fareCents <= 0) {
+          throw Exception('Invalid fare to release.');
+        }
+
+        // ✅ credit the REAL driver from ride doc
+        driverRef = _db.collection('users').doc(rideDriverId);
+        driverSnap = await tx.get(driverRef);
+        if (!driverSnap.exists) throw Exception('Driver user not found');
+      }
+
+      // --------------------
+      // WRITES
+      // --------------------
       final updates = <String, dynamic>{
         'rideStatus': nextStatus,
         'updatedAt': now,
@@ -243,28 +337,31 @@ extension RideStatusTransitions on RideRepository {
         updates['arrivedDestinationAt'] = now;
       } else if (nextStatus == 'completed') {
         updates['completedAt'] = now;
+        updates['paymentStatus'] = 'released';
       }
 
-      // ✅ If completed, READ request BEFORE ANY WRITE
-      DocumentReference<Map<String, dynamic>>? reqRef;
-      DocumentSnapshot<Map<String, dynamic>>? reqSnap;
-
-      if (nextStatus == 'completed') {
-        // ✅ support both keys
-        final requestId =
-        (ride['requestId'] ?? ride['requestID'] ?? '').toString();
-        if (requestId.isNotEmpty) {
-          reqRef = _db.collection('riderRequests').doc(requestId);
-          reqSnap = await tx.get(reqRef);
-        }
-      }
-
-      // ✅ NOW DO WRITES (after all reads)
       tx.update(rideRef, updates);
 
-      if (nextStatus == 'completed' && reqRef != null && (reqSnap?.exists ?? false)) {
+      // ✅ mirror request status update + hold released
+      if (nextStatus == 'completed' && reqRef != null && reqSnap != null && reqSnap.exists) {
         tx.update(reqRef, {
           'status': 'completed',
+          'updatedAt': now,
+          'hold': {
+            ...(hold ?? {}),
+            'status': 'released',
+            'releasedAt': now,
+          },
+        });
+      }
+
+      // ✅ credit driver walletBalance
+      if (nextStatus == 'completed' && driverRef != null && driverSnap != null) {
+        final d = driverSnap.data() as Map<String, dynamic>;
+        final driverWallet = (d['walletBalance'] as num?)?.toInt() ?? 0;
+
+        tx.update(driverRef, {
+          'walletBalance': driverWallet + (fareCents ?? 0),
           'updatedAt': now,
         });
       }
@@ -283,16 +380,17 @@ extension RideStatusTransitions on RideRepository {
 }
 
 // =====================================================
-// CANCELLATION
+// CANCELLATION (✅ REFUND IF HELD)
 // =====================================================
 extension RideCancellation on RideRepository {
   Future<void> cancelRideByRider({required String rideId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
 
-    final rideRef = _rides.doc(rideId);
+    final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
+      // READS
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
@@ -307,27 +405,74 @@ extension RideCancellation on RideRepository {
         throw Exception('Cannot cancel after the trip starts');
       }
 
-      final requestId =
-      (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+      // ✅ prevent double refund
+      final currentPay = (ride['paymentStatus'] ?? '').toString();
+      if (currentPay == 'refunded') throw Exception('Payment already refunded.');
+      if (currentPay == 'released') throw Exception('Payment already released.');
 
+      final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
       final now = FieldValue.serverTimestamp();
 
+      // If held, refund
+      DocumentReference<Map<String, dynamic>>? reqRef;
+      DocumentSnapshot<Map<String, dynamic>>? reqSnap;
+      DocumentReference<Map<String, dynamic>>? riderRef;
+      DocumentSnapshot<Map<String, dynamic>>? riderSnap;
+      Map<String, dynamic>? hold;
+      int? refundCents;
+
+      if (requestId.isNotEmpty) {
+        reqRef = _db.collection('riderRequests').doc(requestId);
+        reqSnap = await tx.get(reqRef);
+
+        if (reqSnap.exists) {
+          final req = reqSnap.data()!;
+          hold = (req['hold'] is Map)
+              ? Map<String, dynamic>.from(req['hold'] as Map)
+              : null;
+
+          final holdStatus = (hold?['status'] ?? 'none').toString();
+          if (holdStatus == 'held') {
+            refundCents = (hold?['amount'] as num?)?.toInt()
+                ?? (ride['finalFare'] as num?)?.toInt();
+
+            riderRef = _db.collection('users').doc(riderId);
+            riderSnap = await tx.get(riderRef);
+            if (!riderSnap.exists) throw Exception('Rider user not found');
+          }
+        }
+      }
+
+      // WRITES
       tx.update(rideRef, {
         'rideStatus': 'cancelled',
         'cancelledBy': 'rider',
         'cancelledAt': now,
         'updatedAt': now,
+        'paymentStatus': (refundCents != null) ? 'refunded' : currentPay,
       });
 
-      if (requestId.isNotEmpty) {
-        final reqRef = _db.collection('riderRequests').doc(requestId);
-        final reqSnap = await tx.get(reqRef);
-        if (reqSnap.exists) {
-          tx.update(reqRef, {
-            'status': 'cancelled',
-            'updatedAt': now,
-          });
-        }
+      if (reqRef != null && reqSnap != null && reqSnap.exists) {
+        tx.update(reqRef, {
+          'status': 'cancelled',
+          'updatedAt': now,
+          if (refundCents != null)
+            'hold': {
+              ...(hold ?? {}),
+              'status': 'refunded',
+              'refundedAt': now,
+            },
+        });
+      }
+
+      if (refundCents != null && riderRef != null && riderSnap != null) {
+        final rd = riderSnap.data() as Map<String, dynamic>;
+        final wallet = (rd['walletBalance'] as num?)?.toInt() ?? 0;
+
+        tx.update(riderRef, {
+          'walletBalance': wallet + refundCents!,
+          'updatedAt': now,
+        });
       }
     });
   }
@@ -336,17 +481,18 @@ extension RideCancellation on RideRepository {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
 
-    final rideRef = _rides.doc(rideId);
+    final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
+      // READS
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
       final ride = rideSnap.data()!;
       final status = (ride['rideStatus'] ?? '').toString();
-      final driverId = (ride['driverID'] ?? '').toString();
+      final rideDriverId = (ride['driverID'] ?? '').toString();
 
-      if (driverId != user.uid) throw Exception('Not authorized');
+      if (rideDriverId != user.uid) throw Exception('Not authorized');
 
       // ✅ Driver can cancel before ongoing
       final canCancel = status == 'incoming' || status == 'arrived_pickup';
@@ -354,27 +500,75 @@ extension RideCancellation on RideRepository {
         throw Exception('Cannot cancel after the trip starts');
       }
 
-      final requestId =
-      (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+      // ✅ prevent double refund
+      final currentPay = (ride['paymentStatus'] ?? '').toString();
+      if (currentPay == 'refunded') throw Exception('Payment already refunded.');
+      if (currentPay == 'released') throw Exception('Payment already released.');
 
+      final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+      final riderId = (ride['riderID'] ?? '').toString();
       final now = FieldValue.serverTimestamp();
 
+      // If held, refund rider
+      DocumentReference<Map<String, dynamic>>? reqRef;
+      DocumentSnapshot<Map<String, dynamic>>? reqSnap;
+      DocumentReference<Map<String, dynamic>>? riderRef;
+      DocumentSnapshot<Map<String, dynamic>>? riderSnap;
+      Map<String, dynamic>? hold;
+      int? refundCents;
+
+      if (requestId.isNotEmpty) {
+        reqRef = _db.collection('riderRequests').doc(requestId);
+        reqSnap = await tx.get(reqRef);
+
+        if (reqSnap.exists) {
+          final req = reqSnap.data()!;
+          hold = (req['hold'] is Map)
+              ? Map<String, dynamic>.from(req['hold'] as Map)
+              : null;
+
+          final holdStatus = (hold?['status'] ?? 'none').toString();
+          if (holdStatus == 'held') {
+            refundCents = (hold?['amount'] as num?)?.toInt()
+                ?? (ride['finalFare'] as num?)?.toInt();
+
+            riderRef = _db.collection('users').doc(riderId);
+            riderSnap = await tx.get(riderRef);
+            if (!riderSnap.exists) throw Exception('Rider user not found');
+          }
+        }
+      }
+
+      // WRITES
       tx.update(rideRef, {
         'rideStatus': 'cancelled',
         'cancelledBy': 'driver',
         'cancelledAt': now,
         'updatedAt': now,
+        'paymentStatus': (refundCents != null) ? 'refunded' : currentPay,
       });
 
-      if (requestId.isNotEmpty) {
-        final reqRef = _db.collection('riderRequests').doc(requestId);
-        final reqSnap = await tx.get(reqRef);
-        if (reqSnap.exists) {
-          tx.update(reqRef, {
-            'status': 'cancelled',
-            'updatedAt': now,
-          });
-        }
+      if (reqRef != null && reqSnap != null && reqSnap.exists) {
+        tx.update(reqRef, {
+          'status': 'cancelled',
+          'updatedAt': now,
+          if (refundCents != null)
+            'hold': {
+              ...(hold ?? {}),
+              'status': 'refunded',
+              'refundedAt': now,
+            },
+        });
+      }
+
+      if (refundCents != null && riderRef != null && riderSnap != null) {
+        final rd = riderSnap.data() as Map<String, dynamic>;
+        final wallet = (rd['walletBalance'] as num?)?.toInt() ?? 0;
+
+        tx.update(riderRef, {
+          'walletBalance': wallet + refundCents!,
+          'updatedAt': now,
+        });
       }
     });
   }

@@ -11,12 +11,23 @@ class ActiveRideExistsException implements Exception {
   String toString() => message;
 }
 
+/// ✅ Wallet minimum exception
+class WalletMinimumException implements Exception {
+  final String message;
+  WalletMinimumException([this.message = 'Wallet balance must be at least RM10.']);
+  @override
+  String toString() => message;
+}
+
 class RiderRequestRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('riderRequests');
+
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
 
   /// statuses considered "active" (cannot create another request)
   static const activeStatuses = [
@@ -26,6 +37,8 @@ class RiderRequestRepository {
     'ongoing',
     'arrived_destination',
   ];
+
+  static const int _minWalletToCreateCents = 1000; // RM10
 
   /// ✅ Convert DateTime -> rideDate + rideTime strings
   Map<String, String> _dateTimeToStrings(DateTime dt) {
@@ -51,7 +64,23 @@ class RiderRequestRepository {
     }
   }
 
+  /// ✅ Must have at least RM10 to create request
+  Future<void> _ensureWalletMinToCreate(String uid) async {
+    final userSnap = await _users.doc(uid).get();
+    if (!userSnap.exists) throw Exception('User not found');
+
+    final data = userSnap.data() as Map<String, dynamic>;
+    final wallet = (data['walletBalance'] as num?)?.toInt() ?? 0;
+
+    if (wallet < _minWalletToCreateCents) {
+      throw WalletMinimumException(
+        'Wallet balance must be at least RM10 to create a request.',
+      );
+    }
+  }
+
   /// ✅ Normal "create now" (immediate waiting)
+  /// Stores: finalFare + distance + duration INSIDE riderRequests
   Future<String> createRiderRequest({
     required String pickupAddress,
     required String destinationAddress,
@@ -60,12 +89,21 @@ class RiderRequestRepository {
     required String rideDate,
     required String rideTime,
     required int seatRequested,
+
+    // ✅ computed once (Directions + fare calc)
+    required int finalFareCents,
+    required double routeDistanceKm,
+    required String routeDurationText,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
 
-    // cannot create if already active
     await _ensureNoActiveRequest(user.uid);
+    await _ensureWalletMinToCreate(user.uid);
+
+    if (finalFareCents <= 0) throw Exception('Invalid fare');
+    if (routeDistanceKm <= 0) throw Exception('Invalid distance');
+    if (routeDurationText.trim().isEmpty) throw Exception('Invalid duration');
 
     final doc = _requests.doc();
     final requestId = doc.id;
@@ -83,14 +121,20 @@ class RiderRequestRepository {
 
       'status': 'waiting',
       'activeRideId': null,
-
       'scheduledAt': null,
 
+      // ✅ store the final fare + real route info here
+      'finalFare': finalFareCents, // cents int
+      'routeDistanceKm': routeDistanceKm,
+      'routeDurationText': routeDurationText,
+
       // ✅ matching settings
-      'searchRadiusKm': 2.0,         // start
-      'maxRadiusKm': 20.0,           // stop
-      'searchStepKm': 2.0,           // each expand
-      'nextExpandAt': Timestamp.fromDate(DateTime.now().add(const Duration(seconds: 30))),
+      'searchRadiusKm': 2.0,
+      'maxRadiusKm': 20.0,
+      'searchStepKm': 2.0,
+      'nextExpandAt': Timestamp.fromDate(
+        DateTime.now().add(const Duration(seconds: 30)),
+      ),
       'notifiedDriverIds': <String>[],
 
       'riderId': user.uid,
@@ -98,11 +142,10 @@ class RiderRequestRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-
     return requestId;
   }
 
-  /// ✅ NEW: create a scheduled request (does NOT show to drivers yet)
+  /// ✅ Scheduled request (still requires RM10 min)
   Future<String> createScheduledRiderRequest({
     required String pickupAddress,
     required String destinationAddress,
@@ -110,12 +153,21 @@ class RiderRequestRepository {
     required GeoPoint destinationGeo,
     required DateTime scheduledAt,
     required int seatRequested,
+
+    // ✅ computed once
+    required int finalFareCents,
+    required double routeDistanceKm,
+    required String routeDurationText,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
 
-    // cannot create if already active
     await _ensureNoActiveRequest(user.uid);
+    await _ensureWalletMinToCreate(user.uid);
+
+    if (finalFareCents <= 0) throw Exception('Invalid fare');
+    if (routeDistanceKm <= 0) throw Exception('Invalid distance');
+    if (routeDurationText.trim().isEmpty) throw Exception('Invalid duration');
 
     final strings = _dateTimeToStrings(scheduledAt);
 
@@ -129,15 +181,18 @@ class RiderRequestRepository {
       'pickupGeo': pickupGeo,
       'destinationGeo': destinationGeo,
 
-      // store as strings for display
       'rideDate': strings['rideDate'],
       'rideTime': strings['rideTime'],
       'seatRequested': seatRequested,
 
-      // scheduled mode
       'status': 'scheduled',
       'activeRideId': null,
       'scheduledAt': Timestamp.fromDate(scheduledAt),
+
+      // ✅ store the final fare + real route info here too
+      'finalFare': finalFareCents,
+      'routeDistanceKm': routeDistanceKm,
+      'routeDurationText': routeDurationText,
 
       'riderId': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
@@ -147,9 +202,7 @@ class RiderRequestRepository {
     return requestId;
   }
 
-  /// ✅ NEW: Activate scheduled requests when time arrived
-  /// Call this when rider opens home screen, or app starts.
-  /// It will change status: scheduled -> waiting if scheduledAt <= now
+  /// ✅ Activate scheduled requests when time arrived
   Future<void> activateDueScheduledRequests() async {
     final user = _auth.currentUser;
     if (user == null) return;

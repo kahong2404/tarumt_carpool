@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart';
+import 'package:tarumt_carpool/services/google_direction_service.dart';
 import 'package:tarumt_carpool/utils/geo_utils.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
 import 'package:tarumt_carpool/widgets/seat_request_dialog.dart';
@@ -23,17 +24,41 @@ class RiderHomeContent extends StatefulWidget {
 
 class _RiderHomeContentState extends State<RiderHomeContent> {
   final RiderRequestRepository _repo = RiderRequestRepository();
+  late final GoogleDirectionsService _directions;
 
   // ✅ filter state
   RideOfferFilter _filter = const RideOfferFilter();
 
+  bool _busy = false;
+
+  // pricing
+  static const double _baseFare = 2.00;
+  static const double _ratePerKm = 0.80; // you can change to 2.00 if you want
+  static const double _minFare = 3.00;
+  static const double _maxFare = 50.00;
+
+  int _calcFareCents(double km) {
+    final raw = _baseFare + (_ratePerKm * km);
+    final withMin = raw < _minFare ? _minFare : raw;
+    final capped = withMin > _maxFare ? _maxFare : withMin;
+    return (capped * 100).round(); // cents int
+  }
+
   @override
   void initState() {
     super.initState();
-    // ✅ activate scheduled requests when rider opens home
+
+    _directions = GoogleDirectionsService('AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA');
+
+    // ✅ keep scheduled activation
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _repo.activateDueScheduledRequests();
     });
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ---------- helpers ----------
@@ -57,13 +82,7 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
 
     if (pickupKmFromKL > serviceRadiusKm || dropoffKmFromKL > serviceRadiusKm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Only KL area is supported (within ${serviceRadiusKm.toInt()} km).\n',
-          ),
-        ),
-      );
+      _snack('Only KL area is supported (within ${serviceRadiusKm.toInt()} km).');
       return false;
     }
     return true;
@@ -81,8 +100,7 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
   }
 
-  Future<Map<String, dynamic>?> _pickDropoff(
-      BuildContext context, LatLng initialTarget) async {
+  Future<Map<String, dynamic>?> _pickDropoff(BuildContext context, LatLng initialTarget) async {
     return await Navigator.push(
       context,
       MaterialPageRoute(
@@ -94,8 +112,21 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
   }
 
+  Future<RouteResult> _computeRouteOrThrow({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    try {
+      return await _directions.getRoute(origin: origin, destination: destination);
+    } catch (e) {
+      throw Exception('Failed to compute route. Please try again. ($e)');
+    }
+  }
+
   // ---------- create request now ----------
   Future<void> _handleCreateRequest(BuildContext context) async {
+    if (_busy) return;
+
     final pickup = await _pickPickup(context);
     if (pickup == null) return;
 
@@ -115,13 +146,23 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
     if (seatRequested == null) return;
 
-    final now = DateTime.now();
-    final rideDate =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final rideTime =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
+    setState(() => _busy = true);
     try {
+      final now = DateTime.now();
+      final rideDate =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final rideTime =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+      final destLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
+
+      final route = await _computeRouteOrThrow(
+        origin: pickupLatLng,
+        destination: destLatLng,
+      );
+
+      final finalFareCents = _calcFareCents(route.distanceKm);
+
       final requestId = await _repo.createRiderRequest(
         pickupAddress: pickupAddress,
         destinationAddress: destinationAddress,
@@ -136,30 +177,31 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
           (dropoff["lat"] as num).toDouble(),
           (dropoff["lng"] as num).toDouble(),
         ),
+
+        // ✅ store computed once
+        finalFareCents: finalFareCents,
+        routeDistanceKm: route.distanceKm,
+        routeDurationText: route.durationText,
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Request created ($seatRequested seat)')),
-      );
-
+      _snack('Request created ($seatRequested seat)');
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => RiderWaitingMapScreen(requestId: requestId),
-        ),
+        MaterialPageRoute(builder: (_) => RiderWaitingMapScreen(requestId: requestId)),
       );
     } catch (e) {
-      if (!mounted) return;
-
-      final msg = (e is ActiveRideExistsException) ? e.toString() : 'Failed: $e';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      _snack(e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   // ---------- schedule booking ----------
   Future<void> _handleScheduleRequest(BuildContext context) async {
+    if (_busy) return;
+
     final pickup = await _pickPickup(context);
     if (pickup == null) return;
 
@@ -197,13 +239,21 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     final scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
 
     if (scheduledAt.isBefore(DateTime.now().add(const Duration(minutes: 5)))) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please choose a time at least 5 minutes later.')),
-      );
+      _snack('Please choose a time at least 5 minutes later.');
       return;
     }
 
+    setState(() => _busy = true);
     try {
+      final destLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
+
+      final route = await _computeRouteOrThrow(
+        origin: pickupLatLng,
+        destination: destLatLng,
+      );
+
+      final finalFareCents = _calcFareCents(route.distanceKm);
+
       final requestId = await _repo.createScheduledRiderRequest(
         pickupAddress: pickupAddress,
         destinationAddress: destinationAddress,
@@ -217,17 +267,18 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
           (dropoff["lat"] as num).toDouble(),
           (dropoff["lng"] as num).toDouble(),
         ),
+
+        // ✅ store computed once
+        finalFareCents: finalFareCents,
+        routeDistanceKm: route.distanceKm,
+        routeDurationText: route.durationText,
       );
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Scheduled booking created ($requestId)')),
-      );
+      _snack('Scheduled booking created ($requestId)');
     } catch (e) {
-      if (!mounted) return;
-
-      final msg = (e is ActiveRideExistsException) ? e.toString() : 'Failed: $e';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      _snack(e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -243,53 +294,66 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          RiderHomeHeader(
-            primaryColor: RiderHomeContent.primary,
-            onCreateRequestTap: () => _handleCreateRequest(context),
-            onWalletTap: () {},
-            onFilterTap: _openFilterDialog,
-            onScheduleTap: () => _handleScheduleRequest(context),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: OpenOffersList(filter: _filter),
-            ),
-          ),
-        ],
-      ),
-
-      // bottom button
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            height: 52,
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _handleCreateRequest(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RiderHomeContent.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+    return Stack(
+      children: [
+        Scaffold(
+          body: Column(
+            children: [
+              RiderHomeHeader(
+                primaryColor: RiderHomeContent.primary,
+                onCreateRequestTap: () => _handleCreateRequest(context),
+                onWalletTap: () {},
+                onFilterTap: _openFilterDialog,
+                onScheduleTap: () => _handleScheduleRequest(context),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: OpenOffersList(filter: _filter),
                 ),
               ),
-              child: const Text(
-                'Apply New Ride',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+            ],
+          ),
+          bottomNavigationBar: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                height: 52,
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _busy ? null : () => _handleCreateRequest(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RiderHomeContent.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Apply New Ride',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
+
+        // ✅ simple loading overlay
+        if (_busy)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.15),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

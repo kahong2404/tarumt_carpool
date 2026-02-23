@@ -37,22 +37,9 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
 
   double? _routeDistanceKm;
   String? _routeDurationText;
-  double? _computedFare;
 
   bool _exitDone = false;
   bool _cancelLoading = false;
-
-  static const double _baseFare = 2.00;
-  static const double _ratePerKm = 0.80;
-  static const double _minFare = 3.00;
-  static const double _maxFare = 50.00;
-
-  double _calcFare(double km) {
-    final raw = _baseFare + (_ratePerKm * km);
-    final withMin = raw < _minFare ? _minFare : raw;
-    final capped = withMin > _maxFare ? _maxFare : withMin;
-    return double.parse(capped.toStringAsFixed(2));
-  }
 
   String _prettyStatus(String s) {
     switch (s) {
@@ -124,7 +111,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
       );
 
       final km = result.distanceKm;
-      final fare = _calcFare(km);
 
       if (!mounted) return;
       setState(() {
@@ -138,7 +124,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
         };
         _routeDistanceKm = km;
         _routeDurationText = result.durationText;
-        _computedFare = fare;
       });
     } catch (_) {
       if (!mounted) return;
@@ -146,7 +131,6 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
         _polylines = {};
         _routeDistanceKm = null;
         _routeDurationText = null;
-        _computedFare = null;
       });
     } finally {
       _loadingRoute = false;
@@ -317,16 +301,18 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
             _lastRouteKey = null;
             _routeDistanceKm = null;
             _routeDurationText = null;
-            _computedFare = null;
           }
+
+          // ✅ Fare comes from Firestore (rides.finalFare) in cents (int)
+          final finalFareCents = (data['finalFare'] as num?)?.toInt();
+          final fareText = (finalFareCents == null)
+              ? null
+              : 'RM ${(finalFareCents / 100).toStringAsFixed(2)}';
 
           final eta = _routeDurationText;
           final kmText = _routeDistanceKm == null
               ? null
               : '${_routeDistanceKm!.toStringAsFixed(1)} km';
-          final fareText = _computedFare == null
-              ? null
-              : 'RM ${_computedFare!.toStringAsFixed(2)}';
 
           return Stack(
             children: [
@@ -399,7 +385,7 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                         ],
                       ),
 
-                      // ✅ NEW: rider cancel only while incoming
+                      // ✅ Rider cancel only while incoming
                       if (status == 'incoming')
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
@@ -418,7 +404,8 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2),
+                                  strokeWidth: 2,
+                                ),
                               )
                                   : const Text(
                                 'Cancel Ride',
