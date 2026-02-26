@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'admin_home_content.dart';
+import 'admin_reports_screen.dart';
 import 'package:tarumt_carpool/screens/profile/dashboard/admin_profile_dashboard.dart';
 
 class AdminTabScaffold extends StatefulWidget {
@@ -41,7 +42,7 @@ class _AdminTabScaffoldState extends State<AdminTabScaffold> {
           children: [
             const AdminHomeContent(),            // can stay const
             const SuspiciousReviewContent(),     // can stay const (if your widget is const)
-            const _PlaceholderTab(title: 'Notifications'),
+            const AdminReportsScreen(),
             AdminProfileDashboard(),             // ✅ NOT const
           ],
         ),
@@ -55,7 +56,8 @@ class _AdminTabScaffoldState extends State<AdminTabScaffold> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.verified_user_outlined), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.rate_review_outlined), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: ''),
+          // BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: ''),
         ],
       ),
