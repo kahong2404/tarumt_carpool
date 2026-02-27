@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../repositories/review_repository.dart';
-import '../../utils/reviews/review_moderation.dart';
+import 'package:tarumt_carpool/repositories/review_repository.dart';
+import 'package:tarumt_carpool/utils/reviews/review_moderation.dart';
 
 class ReviewService {
   final ReviewRepository _repo;

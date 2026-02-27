@@ -5,7 +5,7 @@ import 'package:tarumt_carpool/repositories/review_repository.dart';
 import 'package:tarumt_carpool/widgets/primary_button.dart';
 import 'package:tarumt_carpool/widgets/danger_button.dart';
 import 'package:tarumt_carpool/widgets/reviews/rating_stars_display.dart';
-import 'package:tarumt_carpool/screens/reviews/admin_driver_rating_screen.dart';
+import 'package:tarumt_carpool/screens/reviews/admin/driver_rating_screen.dart';
 
 class AdminReviewDetailScreen extends StatefulWidget {
   final String reviewId;
@@ -27,7 +27,7 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        title: const Text('Review Detail (Admin)'),
+        title: const Text('Review Detail'),
         backgroundColor: primary,
         foregroundColor: Colors.white,
         elevation: 0,

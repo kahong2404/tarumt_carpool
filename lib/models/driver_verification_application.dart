@@ -17,7 +17,8 @@ class DriverVerificationApplication {
     required this.updatedAt,
     required this.profile,
   });
-
+//Firestore → Dart model (read)
+  // Why dont have tpMap becuase Those update specific parts of the document. You NEVER update the entire application at once.
   factory DriverVerificationApplication.fromDoc({
     required String userId,
     required Map<String, dynamic> data,

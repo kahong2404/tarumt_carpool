@@ -1,4 +1,4 @@
-import '../../../models/driver_verification_profile.dart';
+import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 
 class DriverVerificationViewData {
   final String status; // not_applied | pending | approved | rejected

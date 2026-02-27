@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'admin_home_content.dart';
+import 'package:tarumt_carpool/screens/driver_verification/admin/driver_verification_list_page.dart';
+import 'package:tarumt_carpool/screens/reviews/admin/review_list_screen.dart';
 import 'admin_reports_screen.dart';
 import 'package:tarumt_carpool/screens/profile/dashboard/admin_profile_dashboard.dart';
 
@@ -40,10 +41,10 @@ class _AdminTabScaffoldState extends State<AdminTabScaffold> {
           controller: _pageCtrl,
           onPageChanged: (i) => setState(() => _index = i),
           children: [
-            const AdminHomeContent(),            // can stay const
-            const SuspiciousReviewContent(),     // can stay const (if your widget is const)
+            const DriverVerificationListPage(),
+            const AdminReviewListScreen(),
             const AdminReportsScreen(),
-            AdminProfileDashboard(),             // ✅ NOT const
+            AdminProfileDashboard(), // ✅ no const here
           ],
         ),
       ),
@@ -54,31 +55,19 @@ class _AdminTabScaffoldState extends State<AdminTabScaffold> {
         unselectedItemColor: Colors.black54,
         onTap: _onNavTap,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.verified_user_outlined), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.rate_review_outlined), label: ''),
-          // BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: ''),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.verified_user_outlined),
+              label: 'Drivers'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.rate_review_outlined),
+              label: 'Reviews'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              label: 'Reports'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              label: 'Profile'),
         ],
-      ),
-    );
-  }
-}
-
-class _PlaceholderTab extends StatelessWidget {
-  final String title;
-  const _PlaceholderTab({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-          color: Colors.black54,
-        ),
       ),
     );
   }

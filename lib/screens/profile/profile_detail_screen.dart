@@ -1,25 +1,20 @@
 import 'dart:io';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-import '../../repositories/user_repository.dart';
-import '../../services/profile_service.dart';
-import '../../utils/app_errors.dart';
-import '../../utils/validators.dart';
-
-import '../../widgets/error_list.dart';
-import '../../widgets/layout/app_scaffold.dart';
-import '../../widgets/primary_button.dart';
-import '../../widgets/danger_button.dart';
-import '../../widgets/primary_text_field.dart';
-
-import '../../widgets/profile/profile_info_card.dart';
-import '../../widgets/profile/editable_avatar.dart';
-import '../../widgets/profile/read_only_field.dart';
-
-import '../../auth/login_screen.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
+import 'package:tarumt_carpool/auth/login_screen.dart';
+import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/services/profile_service.dart';
+import 'package:tarumt_carpool/utils/app_errors.dart';
+import 'package:tarumt_carpool/utils/validators.dart';
+import 'package:tarumt_carpool/widgets/danger_button.dart';
+import 'package:tarumt_carpool/widgets/error_list.dart';
+import 'package:tarumt_carpool/widgets/primary_button.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
+import 'package:tarumt_carpool/widgets/profile/editable_avatar.dart';
+import 'package:tarumt_carpool/widgets/profile/profile_info_card.dart';
+import 'package:tarumt_carpool/widgets/profile/read_only_field.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({super.key});
@@ -112,7 +107,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
-
   Future<void> _logout() async {
     if (_loggingOut) return;
 
@@ -128,7 +122,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (_) => false,
+        (_) => false,
       );
     } catch (e) {
       _setErrors(e);
@@ -139,7 +133,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Future<void> _confirmAndDeleteAccount() async {
     if (_deleting) return;
-
     final ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -148,7 +141,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           title: const Text('Delete Account?'),
           content: const Text(
             'This action cannot be undone.\n\n'
-                'Your profile will be permanently removed.',
+            'Your profile will be permanently removed.',
           ),
           actions: [
             TextButton(
@@ -181,7 +174,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (_) => false,
+        (_) => false,
       );
     } catch (e) {
       _setErrors(e);
@@ -194,9 +187,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Not logged in')),
-      );
+      return const Scaffold(body: Center(child: Text('Not logged in')));
     }
 
     return AppScaffold(
@@ -244,7 +235,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     ),
                     const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: brandBlue.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
@@ -272,7 +266,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     children: [
                       const Text(
                         'Account Info',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 12),
 

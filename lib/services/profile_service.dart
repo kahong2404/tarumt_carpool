@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
-import '../repositories/user_repository.dart';
-import '../utils/validators.dart';
+import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/utils/validators.dart';
 
 class ProfileService {
   final FirebaseAuth _auth = FirebaseAuth.instance;

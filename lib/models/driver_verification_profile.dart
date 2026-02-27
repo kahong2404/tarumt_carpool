@@ -4,23 +4,14 @@ class DriverVerificationProfile {
   final String vehicleModel;
   final String plateNumber;
   final String color;
-
   final String vehicleImageUrl;
   final String licensePdfUrl;
   final String insurancePdfUrl;
-
-  // not_applied | pending | approved | rejected
-  final String status;
-
-  /// reject reason for CURRENT rejected state
-  final String? rejectReason;
-
-  /// ✅ keep the latest reject reason even after reapply (pending)
-  final String? lastRejectReason;
-
+  final String status;  // not_applied | pending | approved | rejected
+  final String? rejectReason;   /// reject reason for CURRENT rejected state
+  final String? lastRejectReason;  ///  keep the latest reject reason even after reapply (pending)
   final String? reviewedBy;
   final Timestamp? reviewedAt;
-
   final String? approvedBy;
   final Timestamp? approvedAt;
 
@@ -44,6 +35,7 @@ class DriverVerificationProfile {
   /// - sets status pending
   /// - clears current reject/approval info
   /// - DO NOT delete lastRejectReason here
+  /// Convert Dart object → Firestore Map
   Map<String, dynamic> toMapForSubmitPending() {
     return {
       'vehicle': {
@@ -60,27 +52,23 @@ class DriverVerificationProfile {
       },
       'verification': {
         'status': 'pending',
-
-        // clear current rejection result
-        'rejectReason': FieldValue.delete(),
+        'rejectReason': FieldValue.delete(),         // clear current rejection result, but didnt change the las reject reason
         'reviewedBy': FieldValue.delete(),
         'reviewedAt': FieldValue.delete(),
-
-        // clear approval result
-        'approvedBy': FieldValue.delete(),
+        'approvedBy': FieldValue.delete(),         // clear approval result
         'approvedAt': FieldValue.delete(),
-
-        // ✅ keep lastRejectReason (do nothing)
       },
     };
   }
-
+//Used to convert Firestore data → Dart model
   factory DriverVerificationProfile.fromMap(Map<String, dynamic> map) {
     final vehicle = Map<String, dynamic>.from(map['vehicle'] ?? {});
     final license = Map<String, dynamic>.from(map['license'] ?? {});
     final insurance = Map<String, dynamic>.from(map['insurance'] ?? {});
     final ver = Map<String, dynamic>.from(map['verification'] ?? {});
-
+//Meaning of to String:
+//If value exists → convert it to String
+// If value is null → return null
     return DriverVerificationProfile(
       vehicleModel: (vehicle['model'] ?? '').toString(),
       plateNumber: (vehicle['plateNumber'] ?? '').toString(),
@@ -88,29 +76,15 @@ class DriverVerificationProfile {
       vehicleImageUrl: (vehicle['vehicleImageUrl'] ?? '').toString(),
       licensePdfUrl: (license['licensePdfUrl'] ?? '').toString(),
       insurancePdfUrl: (insurance['insurancePdfUrl'] ?? '').toString(),
-
       status: (ver['status'] ?? 'not_applied').toString(),
-
       rejectReason: ver['rejectReason']?.toString(),
       lastRejectReason: ver['lastRejectReason']?.toString(),
-
       reviewedBy: ver['reviewedBy']?.toString(),
       reviewedAt: ver['reviewedAt'] as Timestamp?,
-
       approvedBy: ver['approvedBy']?.toString(),
-      approvedAt: ver['approvedAt'] as Timestamp?,
+      approvedAt: ver['approvedAt'] as Timestamp?,  //can be null
     );
   }
+//Driver has never submitted anything
 
-  static DriverVerificationProfile empty() {
-    return const DriverVerificationProfile(
-      vehicleModel: 'No vehicle submitted',
-      plateNumber: '-',
-      color: '-',
-      vehicleImageUrl: '',
-      licensePdfUrl: '',
-      insurancePdfUrl: '',
-      status: 'not_applied',
-    );
-  }
 }

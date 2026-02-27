@@ -31,7 +31,7 @@ class RatingReview {
     required this.status,
     required this.visibility,
   });
-
+//  //Firestore document into AppUser object
   factory RatingReview.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) throw Exception('RatingReview has no data: ${doc.id}');

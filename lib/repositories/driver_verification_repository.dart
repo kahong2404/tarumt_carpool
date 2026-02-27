@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/driver_verification_profile.dart';
+import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 
 class DriverVerificationRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -59,8 +59,6 @@ class DriverVerificationRepository {
 
           ...profile.toMapForSubmitPending(),
 
-          // ✅ keep it even after resubmit
-          if (latestReason != null) 'verification.lastRejectReason': latestReason,
         },
         SetOptions(merge: true),
       );

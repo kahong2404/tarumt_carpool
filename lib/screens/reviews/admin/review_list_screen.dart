@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 import 'package:tarumt_carpool/repositories/review_repository.dart';
 import 'package:tarumt_carpool/widgets/primary_button.dart';
-import 'package:tarumt_carpool/screens/reviews/admin_review_detail_screen.dart';
+import 'package:tarumt_carpool/screens/reviews/admin/review_detail_screen.dart';
 
 class AdminReviewListScreen extends StatefulWidget {
   const AdminReviewListScreen({super.key});
@@ -41,16 +41,9 @@ class _AdminReviewListScreenState extends State<AdminReviewListScreen> {
       suspiciousFilter: _susFilterBool,
       star: _starInt,
     );
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text('Admin Reviews'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Column(
+    return AppScaffold(
+      title: 'Review Management',
+      child: Column(
         children: [
           _AdminFilterBar(
             suspiciousFilter: _susFilter,

@@ -1,11 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../utils/validators.dart';
-import '../utils/app_errors.dart';
-import '../widgets/error_list.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/primary_text_field.dart';
+import 'package:tarumt_carpool/services/auth_service.dart';
+import 'package:tarumt_carpool/utils/validators.dart';
+import 'package:tarumt_carpool/utils/app_errors.dart';
+import 'package:tarumt_carpool/widgets/error_list.dart';
+import 'package:tarumt_carpool/widgets/primary_button.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -78,7 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return; // If the screen is already closed, stop this register function now. Don’t show snackbar, don’t navigate, don’t update UI
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created successfully!')),
+        const SnackBar(content: Text('Account created successfully.')),
       );  // Show success message after register
 
       Future.delayed(const Duration(milliseconds: 200), () {
@@ -182,7 +182,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               PrimaryTextField(
                 controller: _userIdCtrl,
-                label: 'Student / Staff ID (7 digits)',
+                label: 'Student / Staff ID',
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 12),
@@ -195,14 +195,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               PrimaryTextField(
                 controller: _phoneCtrl,
-                label: 'Phone Number (Malaysia)',
+                label: 'Phone Number',
                 keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 12),
 
               PrimaryTextField(
                 controller: _pwCtrl,
-                label: 'Password (12+ strong)',
+                label: 'Password',
                 obscureText: _pwHidden,
                 suffixIcon: IconButton(
                   onPressed: () => setState(() => _pwHidden = !_pwHidden),

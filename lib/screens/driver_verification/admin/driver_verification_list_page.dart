@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 
 import 'package:tarumt_carpool/models/driver_verification_application.dart';
 import 'package:tarumt_carpool/services/driver_verification/admin/driver_verification_review_service.dart';
-
 import 'driver_verification_detail_page.dart';
 
 class DriverVerificationListPage extends StatefulWidget {
@@ -65,7 +64,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
                   controller: _searchCtrl,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
-                    hintText: 'Search by Staff ID (exact)',
+                    hintText: 'Search by Student / Staff ID',
                     filled: true,
                     fillColor: const Color(0xFFF2F4F7),
                     border: OutlineInputBorder(
@@ -139,7 +138,7 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
         }
 
         final items = snap.data ?? [];
-        if (items.isEmpty) return const Center(child: Text('No applications.'));
+        if (items.isEmpty) return const Center(child: Text('No application matches status filter.'));
 
         return ListView.separated(
           padding: const EdgeInsets.all(12),

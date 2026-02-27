@@ -22,13 +22,13 @@ class DriverVerificationCenterPage extends StatelessWidget {
   _ActionConfig _actionConfig(String status) {
     switch (status) {
       case 'pending':
-        return const _ActionConfig(text: 'Submitted (Pending Review)', enabled: false);
+        return const _ActionConfig(text: 'Submitted (Pending Review)', enabled: false); //waiting for admin approve
       case 'approved':
-        return const _ActionConfig(text: 'Verified', enabled: false);
+        return const _ActionConfig(text: 'Verified', enabled: false); //after admin approved
       case 'rejected':
-        return const _ActionConfig(text: 'Reapply for Driver Verification', enabled: true);
+        return const _ActionConfig(text: 'Reapply for Driver Verification', enabled: true); //apply after rejected
       default:
-        return const _ActionConfig(text: 'Apply for Driver Verification', enabled: true);
+        return const _ActionConfig(text: 'Apply for Driver Verification', enabled: true); //first time apply
     }
   }
 
@@ -42,23 +42,21 @@ class DriverVerificationCenterPage extends StatelessWidget {
         title: const Text('Driver Verification'),
       ),
       body: StreamBuilder<Map<String, dynamic>?>(
-        stream: _svc.streamMyVerification(),
+        stream: _svc.streamMyVerification(),  //listens to Firestore in real time.
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());  //show loading spinner
           }
           if (snap.hasError) {
             return Center(child: Text('Error: ${snap.error}'));
           }
 
           final view = (snap.data == null)
-              ? DriverVerificationViewData.empty()
-              : DriverVerificationViewData.fromDoc(snap.data!);
+              ? DriverVerificationViewData.empty()  //the user havent submit
+              : DriverVerificationViewData.fromDoc(snap.data!); //convert firestore data into Dart object using fromDoc
 
           final action = _actionConfig(view.status);
-
-          // ✅ FIX: correct field name
-          final reason = (view.rejectReason ?? '').trim();
+          final reason = (view.rejectReason ?? '').trim();     //means If rejectReason is null → use empty string '', If not null → use rejectReason
 
           return SafeArea(
             bottom: true,

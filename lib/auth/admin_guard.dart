@@ -26,13 +26,11 @@ class AdminGuard extends StatelessWidget {
         if (snap.connectionState != ConnectionState.done) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-
         if (snap.data != true) {
           return const Scaffold(
             body: Center(child: Text('Access denied (Admin only).')),
           );
         }
-
         return child;
       },
     );

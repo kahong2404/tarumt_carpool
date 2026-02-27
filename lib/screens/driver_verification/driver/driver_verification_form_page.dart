@@ -4,7 +4,6 @@ import 'package:tarumt_carpool/repositories/driver_verification_repository.dart'
 import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_form_controller.dart';
 import 'package:tarumt_carpool/shared/open_url.dart';
-
 import 'package:tarumt_carpool/widgets/primary_text_field.dart';
 import 'package:tarumt_carpool/widgets/primary_button.dart';
 import 'package:tarumt_carpool/widgets/error_list.dart';

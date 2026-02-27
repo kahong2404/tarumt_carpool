@@ -14,6 +14,7 @@ class StarRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = value.clamp(0, 5);
     return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(5, (i) {
         final filled = (i + 1) <= v;
         return Icon(

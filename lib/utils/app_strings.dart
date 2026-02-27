@@ -64,4 +64,6 @@ class AppStrings {
       'Login failed. Please try again.';
   static const genericError =
       'Something went wrong. Please try again.';
+
+
 }

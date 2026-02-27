@@ -4,13 +4,17 @@ class ReviewRepository {
   final FirebaseFirestore _db;
   ReviewRepository({FirebaseFirestore? db}) : _db = db ?? FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>> get rides => _db.collection('rides');
-  CollectionReference<Map<String, dynamic>> get reviews => _db.collection('rating_Reviews');
+  CollectionReference<Map<String, dynamic>> get rides => _db.collection('rides'); //rides → points to Firestore collection "rides"
+  CollectionReference<Map<String, dynamic>> get reviews => _db.collection('rating_Reviews'); //reviews → points to Firestore collection "rating_Reviews"
 
+  //So if the review changes in Firestore:
+  // UI automatically updates.
+  //show the review for the specific reviewId
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamReviewById(String reviewId) {
-    return reviews.doc(reviewId).snapshots();
+    return reviews.doc(reviewId).snapshots(); //snapshots means realtime updates
   }
 
+  //show all the review for the driver Id
   Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverVisibleReviews(String driverId) {
     return reviews
         .where('driverId', isEqualTo: driverId)
@@ -20,12 +24,7 @@ class ReviewRepository {
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverAllReviewsAdmin(String driverId) {
-    return reviews
-        .where('driverId', isEqualTo: driverId)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
+//filter and sort review in driver side
   Stream<QuerySnapshot<Map<String, dynamic>>> streamDriverVisibleReviewsFiltered({
     required String driverId,
     required bool descending,
@@ -68,7 +67,7 @@ class ReviewRepository {
     return q.snapshots();
   }
 
-
+//change the review status to not suspicious
   Future<void> adminMarkNotSuspicious(String reviewId) async {
     await reviews.doc(reviewId).update({
       'isSuspicious': false,
@@ -77,6 +76,7 @@ class ReviewRepository {
     });
   }
 
+  //admin delete the review (soft delete)
   Future<void> adminDeleteReview(String reviewId) async {
     // soft delete (recommended)
     await reviews.doc(reviewId).update({

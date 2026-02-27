@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../driver_verification/admin/driver_verification_list_page.dart';
-
-import '../../../repositories/user_repository.dart';
-import '../../../widgets/profile/profile_header.dart';
-import '../../../widgets/profile/profile_action_button.dart';
-import '../profile_detail_screen.dart';
-import '../../reviews/admin_review_list_screen.dart';
+import 'package:tarumt_carpool/screens/driver_verification/admin/driver_verification_list_page.dart';
+import 'package:tarumt_carpool/screens/reviews/admin/review_list_screen.dart';
+import 'package:tarumt_carpool/screens/profile/profile_detail_screen.dart';
+import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/widgets/profile/profile_header.dart';
+import 'package:tarumt_carpool/widgets/profile/profile_action_button.dart';
 
 class AdminProfileDashboard extends StatelessWidget {
-  AdminProfileDashboard({super.key});
+   AdminProfileDashboard({super.key});
 
   final _auth = FirebaseAuth.instance;
   final _repo = UserRepository();
@@ -67,7 +66,7 @@ class AdminProfileDashboard extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => AdminReviewListScreen()),
+                      MaterialPageRoute(builder: (_) => const AdminReviewListScreen()),
                     );
                   },
                 ),

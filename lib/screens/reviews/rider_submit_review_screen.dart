@@ -35,10 +35,12 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
     super.dispose();
   }
 
+  //This function returns a Stream that provides driver info (name + photo) for UI header.
   Stream<_DriverHeaderVM> _streamDriverHeader() {
-    final rideRef = _db.collection('rides').doc(widget.rideId);
+    final rideRef = _db.collection('rides').doc(widget.rideId);   //Gets reference to ride document: /rides/{rideId}.
 
-    return rideRef.snapshots().asyncMap((snap) async {
+    return rideRef.snapshots().asyncMap((snap) async {       //snapshots() = listen to ride doc in real-time.asyncMap because inside you will call another async function (get user doc).
+//If ride doc not found → return default header.
       if (!snap.exists) {
         return const _DriverHeaderVM(name: 'Driver', photoUrl: null);
       }

@@ -2,16 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-import '../services/notifications/fcm_service.dart';
-
+import 'package:tarumt_carpool/services/notifications/fcm_service.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
-
 import 'package:tarumt_carpool/screens/Admin/admin_tab_scaffold.dart';
 import 'package:tarumt_carpool/screens/Driver/drider_tab_scaffold.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
-
 import 'login_screen.dart';
 import 'admin_guard.dart';
 
@@ -47,10 +43,7 @@ class AfterLoginRouter extends StatelessWidget {
     final user = _auth.currentUser;
     if (user == null) return const LoginScreen();
 
-    // 🔎 Debug: confirm same UID/provider on web vs android
-    debugPrint(
-      'AUTH user: uid=${user.uid} email=${user.email} providers=${user.providerData.map((e) => e.providerId).toList()}',
-    );
+
 
     try {
       // 1) Ensure profile doc exists

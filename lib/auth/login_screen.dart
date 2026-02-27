@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../utils/app_errors.dart';
-import '../utils/validators.dart';
-import '../widgets/error_list.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/primary_text_field.dart';
+import 'package:tarumt_carpool/services/auth_service.dart';
+import 'package:tarumt_carpool/utils/app_errors.dart';
+import 'package:tarumt_carpool/utils/validators.dart';
+import 'package:tarumt_carpool/widgets/error_list.dart';
+import 'package:tarumt_carpool/widgets/primary_button.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'after_login_router.dart';
@@ -18,14 +18,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _auth = AuthService();
-
   final _emailCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
-
   bool _pwHidden = true;
   bool _loading = false;
   List<String> _errors = [];
-
   final Color brandBlue = const Color(0xFF1E73FF);
 
   @override
@@ -36,19 +33,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _onLogin() async {
-    FocusScope.of(context).unfocus();
-    setState(() => _errors = []);
-
+    FocusScope.of(context).unfocus();  //Removes keyboard from screen.
+    setState(() => _errors = []);  //Before validating, clear old error messages.
     final errs = Validators.validateLoginAll(
       email: _emailCtrl.text,
       password: _pwCtrl.text,
     );
-
+    //Stop login immediately, if there any errors
     if (errs.isNotEmpty) {
       setState(() => _errors = errs);
       return;
     }
-
+//UI updates. Login button can become spinner.
     setState(() => _loading = true);
     try {
       await _auth.login(

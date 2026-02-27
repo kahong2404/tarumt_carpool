@@ -4,18 +4,13 @@ class AppUser {
   final String name;
   final String email;
   final String phone;
-
   final List<String> roles; // ['rider'], ['driver'], ['rider','driver'], ['admin']
   final String activeRole;  // 'rider' | 'driver' | 'admin'
-
   final String driverStatus; // not_driver | pending | approved | rejected | not_applied
-
-  /// ✅ Firestore key: "walletBalance"
-  /// ✅ Meaning: CENTS (e.g. 7000 = RM70.00)
-  final int walletBalanceCents;
-
+  final int walletBalanceCents; //Meaning: CENTS (e.g. 7000 = RM70.00)
   final String? photoUrl;
 
+  //Constructor
   AppUser({
     required this.uid,
     required this.userId,
@@ -29,9 +24,7 @@ class AppUser {
     this.photoUrl,
   });
 
-  double get walletBalanceRm => walletBalanceCents / 100.0;
-  String get formatWalletRm => walletBalanceRm.toStringAsFixed(2);
-
+  //converts object into Firestore format.
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
@@ -42,14 +35,12 @@ class AppUser {
       'roles': roles,
       'activeRole': activeRole,
       'driverStatus': driverStatus,
-
-      // ✅ Keep DB key as walletBalance (cents int)
       'walletBalance': walletBalanceCents,
-
       'photoUrl': photoUrl,
     };
   }
 
+  //Firestore document into AppUser object
   factory AppUser.fromMap(Map<String, dynamic> map) {
     return AppUser(
       uid: (map['uid'] ?? '').toString(),
@@ -60,34 +51,10 @@ class AppUser {
       roles: List<String>.from(map['roles'] ?? const <String>[]),
       activeRole: (map['activeRole'] ?? 'rider').toString(),
       driverStatus: (map['driverStatus'] ?? 'not_applied').toString(),
-      walletBalanceCents: (map['walletBalance'] ?? 0) as int, // ✅ must be int
+      walletBalanceCents: (map['walletBalance'] ?? 0) as int,
       photoUrl: map['photoUrl']?.toString(),
     );
   }
 
-  AppUser copyWith({
-    String? uid,
-    String? userId,
-    String? name,
-    String? email,
-    String? phone,
-    List<String>? roles,
-    String? activeRole,
-    String? driverStatus,
-    int? walletBalanceCents,
-    String? photoUrl,
-  }) {
-    return AppUser(
-      uid: uid ?? this.uid,
-      userId: userId ?? this.userId,
-      name: name ?? this.name,
-      email: email ?? this.email,
-      phone: phone ?? this.phone,
-      roles: roles ?? this.roles,
-      activeRole: activeRole ?? this.activeRole,
-      driverStatus: driverStatus ?? this.driverStatus,
-      walletBalanceCents: walletBalanceCents ?? this.walletBalanceCents,
-      photoUrl: photoUrl ?? this.photoUrl,
-    );
-  }
+
 }

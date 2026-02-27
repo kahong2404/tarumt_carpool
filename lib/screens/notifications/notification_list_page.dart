@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
-import '../../models/app_notification.dart';
-import '../../repositories/notification_repository.dart';
+import 'package:tarumt_carpool/models/app_notification.dart';
+import 'package:tarumt_carpool/repositories/notification_repository.dart';
 
 class NotificationListPage extends StatelessWidget {
   NotificationListPage({super.key});

@@ -2,18 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../../models/driver_verification_profile.dart';
-import '../../../repositories/driver_verification_repository.dart';
-
-import '../../../utils/administration_verification/app_errors.dart';
-import '../../../utils/administration_verification/app_strings.dart';
-import '../../../utils/administration_verification/validators.dart';
-
-import 'driver_verification_service.dart';
+import 'package:tarumt_carpool/models/driver_verification_profile.dart';
+import 'package:tarumt_carpool/repositories/driver_verification_repository.dart';
+import 'package:tarumt_carpool/utils/administration_verification/app_errors.dart';
+import 'package:tarumt_carpool/utils/administration_verification/app_strings.dart';
+import 'package:tarumt_carpool/utils/administration_verification/validators.dart';
+import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_service.dart';
 import 'driver_verification_storage_service.dart';
-
-import '../../pickers/image_picker_service.dart';
-import '../../pickers/pdf_picker_service.dart';
+import 'package:tarumt_carpool/services/pickers/image_picker_service.dart';
+import 'package:tarumt_carpool/services/pickers/pdf_picker_service.dart';
 
 class DriverVerificationFormState {
   final bool loadinguserId;
@@ -350,4 +347,6 @@ class DriverVerificationFormController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+
 }

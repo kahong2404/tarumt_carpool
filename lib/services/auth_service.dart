@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/app_user.dart';
-import '../repositories/user_repository.dart';
-import '../utils/validators.dart';
+import 'package:tarumt_carpool/models/app_user.dart';
+import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/utils/validators.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
