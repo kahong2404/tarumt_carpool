@@ -80,10 +80,10 @@ class AdminReportsScreen extends StatelessWidget {
                 child: GridView.builder(
                   itemCount: reports.length,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // 2 cards per row
+                    crossAxisCount: 2,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    childAspectRatio: 1.15,
+                    mainAxisExtent: 175, // ✅ increase height (try 175, 180 if needed)
                   ),
                   itemBuilder: (context, i) {
                     final r = reports[i];
@@ -158,28 +158,32 @@ class _ReportCard extends StatelessWidget {
                 ),
                 child: Icon(icon),
               ),
-              const Spacer(),
+              const SizedBox(height: 10),
+
               Text(
                 title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.black54),
+
+              Expanded(
+                child: Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black54),
+                ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: const [
-                  Text('View', style: TextStyle(fontWeight: FontWeight.w700)),
-                  SizedBox(width: 6),
-                  Icon(Icons.chevron_right, size: 18),
-                ],
+
+              const SizedBox(height: 6),
+              const Text(
+                'Tap to view',
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),

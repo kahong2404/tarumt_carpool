@@ -22,6 +22,8 @@ class RideRepository {
 
   CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
 
+  // Add near your other collection refs in RideRepository
+  CollectionReference<Map<String, dynamic>> get _walletTx => _db.collection('walletTransactions');
   // ----------------------------
   // OOP STREAMS (Recommended)
   // ----------------------------
@@ -280,7 +282,9 @@ extension RideStatusTransitions on RideRepository {
       DocumentSnapshot<Map<String, dynamic>>? reqSnap;
       DocumentReference<Map<String, dynamic>>? driverRef;
       DocumentSnapshot<Map<String, dynamic>>? driverSnap;
-
+      DocumentReference<Map<String, dynamic>>? walletTxRef;
+      String? requestIdForRef;
+      String? riderIdForRef;
       int? fareCents;
       Map<String, dynamic>? hold;
 

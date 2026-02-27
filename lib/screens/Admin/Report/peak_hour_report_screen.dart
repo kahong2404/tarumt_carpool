@@ -14,9 +14,11 @@ class PeakHourCreatedCompletedReportScreen extends StatefulWidget {
 
 class _PeakHourCreatedCompletedReportScreenState
     extends State<PeakHourCreatedCompletedReportScreen> {
+  static const Color createdColor = Color(0xFF1E73FF); // blue
+  static const Color completedColor = Color(0xFF2ECC71); // green
+
   ReportRange _range = ReportRange.last7;
 
-  /// Returns (start, end) in local time
   (DateTime start, DateTime end) _getRangeWindow(ReportRange r) {
     final now = DateTime.now();
     switch (r) {
@@ -44,14 +46,14 @@ class _PeakHourCreatedCompletedReportScreenState
   Future<({List<int> created, List<int> completed})> _loadCounts() async {
     final (start, end) = _getRangeWindow(_range);
 
-    // 1) Created rides (demand)
+    // Created rides
     final createdSnap = await FirebaseFirestore.instance
         .collection('rides')
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .get();
 
-    // 2) Completed rides (fulfilled supply)
+    // Completed rides
     final completedSnap = await FirebaseFirestore.instance
         .collection('rides')
         .where('rideStatus', isEqualTo: 'completed')
@@ -83,6 +85,87 @@ class _PeakHourCreatedCompletedReportScreenState
 
   int _maxInt(List<int> a) => a.isEmpty ? 0 : a.reduce((x, y) => x > y ? x : y);
 
+  Widget _buildHourlyChart({
+    required String title,
+    required String subtitle,
+    required List<int> data,
+    required Color color,
+  }) {
+    final maxY = _maxInt(data);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: const TextStyle(color: Colors.black54)),
+        const SizedBox(height: 10),
+
+        SizedBox(
+          height: 260,
+          child: BarChart(
+            BarChartData(
+              maxY: (maxY == 0 ? 1 : maxY + 1).toDouble(),
+              barGroups: List.generate(24, (hour) {
+                return BarChartGroupData(
+                  x: hour,
+                  barRods: [
+                    BarChartRodData(
+                      toY: data[hour].toDouble(),
+                      width: 5,
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ],
+                );
+              }),
+              titlesData: FlTitlesData(
+                leftTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: 3,
+                    getTitlesWidget: (value, meta) {
+                      final h = value.toInt();
+                      if (h < 0 || h > 23) return const SizedBox.shrink();
+                      if (h % 2 != 0) return const SizedBox.shrink(); // show every 3 hours
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text('$h', style: const TextStyle(fontSize: 10)),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              gridData: const FlGridData(show: true),
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    return BarTooltipItem(
+                      '${group.x}:00\n${rod.toY.toInt()} rides',
+                      const TextStyle(),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 22),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,12 +175,9 @@ class _PeakHourCreatedCompletedReportScreenState
           DropdownButtonHideUnderline(
             child: DropdownButton<ReportRange>(
               value: _range,
-              items: ReportRange.values.map((r) {
-                return DropdownMenuItem(
-                  value: r,
-                  child: Text(_rangeLabel(r)),
-                );
-              }).toList(),
+              items: ReportRange.values
+                  .map((r) => DropdownMenuItem(value: r, child: Text(_rangeLabel(r))))
+                  .toList(),
               onChanged: (v) {
                 if (v == null) return;
                 setState(() => _range = v);
@@ -113,9 +193,7 @@ class _PeakHourCreatedCompletedReportScreenState
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snap.hasError) {
-            return Center(child: Text('Error: ${snap.error}'));
-          }
+          if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
 
           final created = snap.data?.created ?? List<int>.filled(24, 0);
           final completed = snap.data?.completed ?? List<int>.filled(24, 0);
@@ -125,16 +203,20 @@ class _PeakHourCreatedCompletedReportScreenState
           final peakCreatedHour = created.indexOf(peakCreatedVal);
           final peakCompletedHour = completed.indexOf(peakCompletedVal);
 
-          final maxY = _maxInt([
-            ...created,
-            ...completed,
-          ]);
-
           return Padding(
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                // KPI summary
+                const InfoBox(
+                  title: 'What this report shows',
+                  body:
+                  'This report breaks down activity by hour (0–23). '
+                      'Created rides represent demand (when riders request). '
+                      'Completed rides represent fulfilled trips. '
+                      'Admins can use this to identify peak demand hours and plan driver supply or incentives.',
+                ),
+                const SizedBox(height: 12),
+
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -151,96 +233,20 @@ class _PeakHourCreatedCompletedReportScreenState
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
-                const Text(
-                  'Created vs Completed per Hour (0–23)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-
-                SizedBox(
-                  height: 340,
-                  child: BarChart(
-                    BarChartData(
-                      maxY: (maxY == 0 ? 1 : maxY + 1).toDouble(),
-                      barGroups: List.generate(24, (hour) {
-                        return BarChartGroupData(
-                          x: hour,
-                          barsSpace: 4,
-                          barRods: [
-                            // Created
-                            BarChartRodData(
-                              toY: created[hour].toDouble(),
-                              width: 7,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            // Completed
-                            BarChartRodData(
-                              toY: completed[hour].toDouble(),
-                              width: 7,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ],
-                        );
-                      }),
-                      titlesData: FlTitlesData(
-                        leftTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: true, reservedSize: 40),
-                        ),
-                        rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            interval: 3,
-                            getTitlesWidget: (value, meta) {
-                              final h = value.toInt();
-                              if (h < 0 || h > 23) return const SizedBox.shrink();
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text('$h'),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      gridData: const FlGridData(show: true),
-                      borderData: FlBorderData(show: false),
-                      barTouchData: BarTouchData(
-                        enabled: true,
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                            final hour = group.x;
-                            final isCreated = rodIndex == 0;
-                            final label = isCreated ? 'Created' : 'Completed';
-                            final value = rod.toY.toInt();
-                            return BarTooltipItem(
-                              '$hour:00\n$label: $value',
-                              const TextStyle(),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
+                _buildHourlyChart(
+                  title: 'Created Rides per Hour (Demand)',
+                  subtitle: 'Shows when users request rides the most.',
+                  data: created,
+                  color: createdColor,
                 ),
 
-                const SizedBox(height: 12),
-                const Text(
-                  'Tip: If bars look the same style, you can add a legend using small labels below.',
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: const [
-                    _LegendDot(label: 'Created', isSecond: false),
-                    SizedBox(width: 16),
-                    _LegendDot(label: 'Completed', isSecond: true),
-                  ],
+                _buildHourlyChart(
+                  title: 'Completed Rides per Hour (Fulfilled)',
+                  subtitle: 'Shows when rides are successfully completed.',
+                  data: completed,
+                  color: completedColor,
                 ),
               ],
             ),
@@ -268,6 +274,7 @@ class _KpiCard extends StatelessWidget {
       width: 180,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border.all(color: Colors.black12),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -285,29 +292,29 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class _LegendDot extends StatelessWidget {
-  final String label;
-  final bool isSecond;
+class InfoBox extends StatelessWidget {
+  final String title;
+  final String body;
 
-  const _LegendDot({required this.label, required this.isSecond});
+  const InfoBox({super.key, required this.title, required this.body});
 
   @override
   Widget build(BuildContext context) {
-    // We’re not setting colors explicitly as you didn’t ask;
-    // legend is just label-based.
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black54),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(label),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(body, style: const TextStyle(color: Colors.black54)),
+        ],
+      ),
     );
   }
 }
