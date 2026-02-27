@@ -5,26 +5,29 @@ import 'package:tarumt_carpool/widgets/report_ui.dart';
 
 enum ReportRange { today, last7, last30 }
 
-class RevenueReportScreen extends StatefulWidget {
-  const RevenueReportScreen({super.key});
+class UsersOverviewReportScreen extends StatefulWidget {
+  const UsersOverviewReportScreen({super.key});
 
   @override
-  State<RevenueReportScreen> createState() => _RevenueReportScreenState();
+  State<UsersOverviewReportScreen> createState() =>
+      _UsersOverviewReportScreenState();
 }
 
-class _RevenueReportScreenState extends State<RevenueReportScreen> {
-  static const Color revenueColor = Color(0xFF1E73FF);
+class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
+  static const Color newColor = Color(0xFF1E73FF);
+  static const Color activeColor = Color(0xFF2ECC71);
 
-  static const int bucketHoursForToday = 3;
   static const int bucketDaysFor30 = 7;
+  static const int bucketHoursForToday = 3;
 
   ReportRange _range = ReportRange.last7;
 
-  // ✅ cache future so tap doesn't re-query
-  late Future<_RevenueRangeResult> _future;
+  // ✅ Cache the future so tapping bars doesn't re-query Firestore
+  late Future<_UsersOverviewResult> _future;
 
-  // ✅ tooltip overlay state
-  int _touchedIndex = -1;
+  // ✅ Tooltip state (overlay like Pie)
+  int _touchedGroupIndex = -1; // which x group
+  int _touchedRodIndex = -1; // 0 = New, 1 = Active
   Offset? _tooltipPos;
 
   @override
@@ -35,7 +38,8 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
 
   void _reload() {
     setState(() {
-      _touchedIndex = -1;
+      _touchedGroupIndex = -1;
+      _touchedRodIndex = -1;
       _tooltipPos = null;
       _future = _load();
     });
@@ -76,21 +80,21 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
     }
   }
 
+  String _chartTitle(_UsersOverviewResult res) {
+    if (res.isWeekly) return 'New vs Active Users (by week)';
+    if (res.isThreeHourly) return 'New vs Active Users (by 3 hours)';
+    return 'New vs Active Users (by day)';
+  }
+
   String _yAxisTitle(ReportRange r) {
     switch (r) {
       case ReportRange.today:
-        return 'Revenue (RM) per 3 hrs';
+        return 'Users (today, per 3 hrs)';
       case ReportRange.last7:
-        return 'Revenue (RM) per day';
+        return 'Users (last 7 days)';
       case ReportRange.last30:
-        return 'Revenue (RM) per week';
+        return 'Users (last 30 days)';
     }
-  }
-
-  String _chartTitle(_RevenueRangeResult res) {
-    if (res.isWeekly) return 'Revenue (by week)';
-    if (res.isThreeHourly) return 'Revenue (by 3 hours)';
-    return 'Revenue (by day)';
   }
 
   DateTime _dayKey(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
@@ -100,15 +104,10 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
     return DateTime(dt.year, dt.month, dt.day, h);
   }
 
-  String _formatMd(DateTime d) => '${d.month}/${d.day}';
-  String _formatHm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:00';
-  String _formatHmMin(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-  double _maxDouble(List<double> a) =>
+  int _maxInt(List<int> a) =>
       a.isEmpty ? 0 : a.reduce((x, y) => x > y ? x : y);
 
-  int _niceInterval(double maxY) {
+  int _niceInterval(int maxY) {
     if (maxY <= 5) return 1;
     final raw = (maxY / 5).ceil();
     if (raw <= 2) return 2;
@@ -116,150 +115,164 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
     if (raw <= 10) return 10;
     if (raw <= 20) return 20;
     if (raw <= 50) return 50;
-    if (raw <= 100) return 100;
-    return 200;
+    return 100;
   }
 
-  Future<_RevenueRangeResult> _load() async {
+  String _formatMd(DateTime d) => '${d.month}/${d.day}';
+  String _formatHm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:00';
+  String _formatHmMin(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  Future<_UsersOverviewResult> _load() async {
     final (start, end) = _getRangeWindow(_range);
 
-    final snap = await FirebaseFirestore.instance
-        .collection('rides')
-        .where('rideStatus', isEqualTo: 'completed')
-        .where('paymentStatus', isEqualTo: 'released')
-        .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('completedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+    final totalSnap = await FirebaseFirestore.instance.collection('users').get();
+    final totalUsers = totalSnap.size;
+
+    final newSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .get();
 
-    double total = 0;
-    int count = 0;
+    final activeSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('updatedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('updatedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .get();
 
-    // keep every ride record (datetime + amount) so we can bucket later
-    final rides = <({DateTime dt, double amount})>[];
-
-    for (final doc in snap.docs) {
-      final data = doc.data();
-
-      final fareNum = data['finalFare'];
-      final fare = (fareNum is num) ? fareNum.toDouble() : 0.0;
-
-      final ts = data['completedAt'] as Timestamp?;
+    // daily maps for last7/last30
+    final Map<DateTime, int> newByDay = {};
+    for (final doc in newSnap.docs) {
+      final ts = doc.data()['createdAt'] as Timestamp?;
       if (ts == null) continue;
+      final d = _dayKey(ts.toDate().toLocal());
+      newByDay[d] = (newByDay[d] ?? 0) + 1;
+    }
 
-      final dt = ts.toDate().toLocal();
-      total += fare;
-      count++;
-
-      rides.add((dt: dt, amount: fare));
+    final Map<DateTime, int> activeByDay = {};
+    for (final doc in activeSnap.docs) {
+      final ts = doc.data()['updatedAt'] as Timestamp?;
+      if (ts == null) continue;
+      final d = _dayKey(ts.toDate().toLocal());
+      activeByDay[d] = (activeByDay[d] ?? 0) + 1;
     }
 
     // ✅ TODAY: 3-hour buckets
     if (_range == ReportRange.today) {
-      final Map<DateTime, double> by3h = {};
-      for (final r in rides) {
-        final k = _bucket3hKey(r.dt);
-        by3h[k] = (by3h[k] ?? 0) + r.amount;
+      final Map<DateTime, int> newBy3h = {};
+      for (final doc in newSnap.docs) {
+        final ts = doc.data()['createdAt'] as Timestamp?;
+        if (ts == null) continue;
+        final k = _bucket3hKey(ts.toDate().toLocal());
+        newBy3h[k] = (newBy3h[k] ?? 0) + 1;
       }
 
-      final points = <DateTime>[];
-      final endDates = <DateTime>[];
+      final Map<DateTime, int> activeBy3h = {};
+      for (final doc in activeSnap.docs) {
+        final ts = doc.data()['updatedAt'] as Timestamp?;
+        if (ts == null) continue;
+        final k = _bucket3hKey(ts.toDate().toLocal());
+        activeBy3h[k] = (activeBy3h[k] ?? 0) + 1;
+      }
 
-      // 0,3,6,9,...,21
       final startBucket = DateTime(end.year, end.month, end.day, 0);
       final lastBucket = DateTime(end.year, end.month, end.day, 21);
 
+      final points = <DateTime>[];
       DateTime cursor = startBucket;
       while (!cursor.isAfter(lastBucket)) {
         points.add(cursor);
-        endDates.add(cursor.add(const Duration(hours: 2, minutes: 59, seconds: 59)));
         cursor = cursor.add(const Duration(hours: bucketHoursForToday));
       }
 
-      final values = points.map((p) => by3h[p] ?? 0.0).toList();
+      final newSeries = points.map((h) => newBy3h[h] ?? 0).toList();
+      final activeSeries = points.map((h) => activeBy3h[h] ?? 0).toList();
 
-      return _RevenueRangeResult(
-        total: total,
-        count: count,
-        avg: count == 0 ? 0 : total / count,
+      final endDates = points
+          .map((h) => h.add(const Duration(hours: 2, minutes: 59, seconds: 59)))
+          .toList();
+
+      return _UsersOverviewResult(
+        totalUsers: totalUsers,
+        newUsers: newSnap.size,
+        activeUsers: activeSnap.size,
         points: points,
         pointEndDates: endDates,
-        values: values,
+        newSeries: newSeries,
+        activeSeries: activeSeries,
         isWeekly: false,
         isThreeHourly: true,
       );
     }
 
-    // ✅ LAST7: daily buckets
-    if (_range == ReportRange.last7) {
-      final Map<DateTime, double> byDay = {};
-      for (final r in rides) {
-        final k = _dayKey(r.dt);
-        byDay[k] = (byDay[k] ?? 0) + r.amount;
-      }
+    // ✅ LAST30: weekly buckets
+    if (_range == ReportRange.last30) {
+      final List<DateTime> bucketStarts = [];
+      final List<DateTime> bucketEnds = [];
+      final List<int> newSeries = [];
+      final List<int> activeSeries = [];
 
-      final points = <DateTime>[];
       DateTime cursor = _dayKey(start.toLocal());
       final lastDay = _dayKey(end.toLocal());
+
       while (!cursor.isAfter(lastDay)) {
-        points.add(cursor);
-        cursor = cursor.add(const Duration(days: 1));
+        final rangeStart = cursor;
+        var rangeEnd = cursor.add(const Duration(days: bucketDaysFor30 - 1));
+        if (rangeEnd.isAfter(lastDay)) rangeEnd = lastDay;
+
+        int newSum = 0;
+        int activeSum = 0;
+
+        DateTime inner = rangeStart;
+        while (!inner.isAfter(rangeEnd)) {
+          newSum += newByDay[inner] ?? 0;
+          activeSum += activeByDay[inner] ?? 0;
+          inner = inner.add(const Duration(days: 1));
+        }
+
+        bucketStarts.add(rangeStart);
+        bucketEnds.add(rangeEnd);
+        newSeries.add(newSum);
+        activeSeries.add(activeSum);
+
+        cursor = rangeEnd.add(const Duration(days: 1));
       }
 
-      final values = points.map((d) => byDay[d] ?? 0.0).toList();
-
-      return _RevenueRangeResult(
-        total: total,
-        count: count,
-        avg: count == 0 ? 0 : total / count,
-        points: points,
-        pointEndDates: points,
-        values: values,
-        isWeekly: false,
+      return _UsersOverviewResult(
+        totalUsers: totalUsers,
+        newUsers: newSnap.size,
+        activeUsers: activeSnap.size,
+        points: bucketStarts,
+        pointEndDates: bucketEnds,
+        newSeries: newSeries,
+        activeSeries: activeSeries,
+        isWeekly: true,
         isThreeHourly: false,
       );
     }
 
-    // ✅ LAST30: weekly buckets (7-day blocks)
-    final Map<DateTime, double> byDay = {};
-    for (final r in rides) {
-      final k = _dayKey(r.dt);
-      byDay[k] = (byDay[k] ?? 0) + r.amount;
-    }
-
-    final bucketStarts = <DateTime>[];
-    final bucketEnds = <DateTime>[];
-    final values = <double>[];
-
+    // ✅ LAST7: daily buckets
+    final points = <DateTime>[];
     DateTime cursor = _dayKey(start.toLocal());
     final lastDay = _dayKey(end.toLocal());
-
     while (!cursor.isAfter(lastDay)) {
-      final rangeStart = cursor;
-      var rangeEnd = cursor.add(const Duration(days: bucketDaysFor30 - 1));
-      if (rangeEnd.isAfter(lastDay)) rangeEnd = lastDay;
-
-      double sum = 0.0;
-      DateTime inner = rangeStart;
-      while (!inner.isAfter(rangeEnd)) {
-        sum += byDay[inner] ?? 0.0;
-        inner = inner.add(const Duration(days: 1));
-      }
-
-      bucketStarts.add(rangeStart);
-      bucketEnds.add(rangeEnd);
-      values.add(sum);
-
-      cursor = rangeEnd.add(const Duration(days: 1));
+      points.add(cursor);
+      cursor = cursor.add(const Duration(days: 1));
     }
 
-    return _RevenueRangeResult(
-      total: total,
-      count: count,
-      avg: count == 0 ? 0 : total / count,
-      points: bucketStarts,
-      pointEndDates: bucketEnds,
-      values: values,
-      isWeekly: true,
+    final newSeries = points.map((d) => newByDay[d] ?? 0).toList();
+    final activeSeries = points.map((d) => activeByDay[d] ?? 0).toList();
+
+    return _UsersOverviewResult(
+      totalUsers: totalUsers,
+      newUsers: newSnap.size,
+      activeUsers: activeSnap.size,
+      points: points,
+      pointEndDates: points,
+      newSeries: newSeries,
+      activeSeries: activeSeries,
+      isWeekly: false,
       isThreeHourly: false,
     );
   }
@@ -271,7 +284,7 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Revenue Report'),
+        title: const Text('Users Overview Report'),
         actions: [
           DropdownButtonHideUnderline(
             child: DropdownButton<ReportRange>(
@@ -284,37 +297,39 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                   .toList(),
               onChanged: (v) {
                 if (v == null) return;
-                setState(() => _range = v);
-                _reload(); // ✅ reload only when filter changes
+                setState(() {
+                  _range = v;
+                });
+                _reload(); // ✅ reload data ONLY when range changes
               },
             ),
           ),
           const SizedBox(width: 12),
         ],
       ),
-      body: FutureBuilder<_RevenueRangeResult>(
-        future: _future,
+      body: FutureBuilder<_UsersOverviewResult>(
+        future: _future, // ✅ cached future
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
 
-          final res = snap.data ?? _RevenueRangeResult.empty();
+          final res = snap.data ?? _UsersOverviewResult.empty();
 
-          final maxVal = _maxDouble(res.values);
-          final yMax = (maxVal == 0 ? 1.0 : maxVal * 1.2);
+          final maxY = _maxInt([...res.newSeries, ...res.activeSeries]);
+          final yMax = (maxY == 0 ? 1 : maxY + 1);
           final interval = _niceInterval(yMax).toDouble();
 
           return Padding(
             padding: ReportUI.pagePadding,
             child: ListView(
               children: [
-                ReportInfoBox(
+                const ReportInfoBox(
                   title: 'What this report means',
                   body:
-                  'This report shows revenue from completed rides with payment status “released” for ${_rangeLabel(_range).toLowerCase()}. '
-                      'Use it to track income trends and identify strong time periods.',
+                  'This report shows total users, new registrations and active updates within the selected time range. '
+                      'Use it to track user growth and engagement.',
                 ),
                 const SizedBox(height: ReportUI.gapM),
 
@@ -324,17 +339,17 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                       children: [
                         Expanded(
                           child: _KpiCard(
-                            title: 'Total Revenue',
-                            value: 'RM ${res.total.toStringAsFixed(2)}',
-                            subtitle: _rangeLabel(_range),
+                            title: 'Total Users',
+                            value: res.totalUsers.toString(),
+                            subtitle: 'All time',
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _KpiCard(
-                            title: 'Average Fare',
-                            value: 'RM ${res.avg.toStringAsFixed(2)}',
-                            subtitle: 'Per completed ride',
+                            title: 'New Users',
+                            value: res.newUsers.toString(),
+                            subtitle: _rangeLabel(_range),
                           ),
                         ),
                       ],
@@ -344,9 +359,9 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                       children: [
                         Expanded(
                           child: _KpiCard(
-                            title: 'Paid Completed Rides',
-                            value: res.count.toString(),
-                            subtitle: 'paymentStatus: released',
+                            title: 'Active Users',
+                            value: res.activeUsers.toString(),
+                            subtitle: _rangeLabel(_range),
                           ),
                         ),
                         const Expanded(child: SizedBox()),
@@ -362,7 +377,7 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // ✅ Chart + floating tooltip overlay
+                // ✅ Chart + custom tooltip overlay
                 ReportChartBox(
                   chart: LayoutBuilder(
                     builder: (context, box) {
@@ -372,28 +387,31 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                           BarChart(
                             BarChartData(
                               minY: 0,
-                              maxY: yMax,
-                              borderData: FlBorderData(
-                                show: true,
-                                border: ReportUI.chartBorder,
-                              ),
+                              maxY: yMax.toDouble(),
+                              borderData:
+                              FlBorderData(show: true, border: ReportUI.chartBorder),
                               gridData: ReportUI.grid(),
                               extraLinesData: ReportUI.baseline0(),
-
-                              barGroups: List.generate(res.values.length, (i) {
+                              barGroups: List.generate(res.points.length, (i) {
                                 return BarChartGroupData(
                                   x: i,
+                                  barsSpace: 8,
                                   barRods: [
                                     BarChartRodData(
-                                      toY: res.values[i],
-                                      width: 14,
-                                      color: revenueColor,
-                                      borderRadius: BorderRadius.circular(5),
+                                      toY: res.newSeries[i].toDouble(),
+                                      width: 12,
+                                      color: newColor,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    BarChartRodData(
+                                      toY: res.activeSeries[i].toDouble(),
+                                      width: 12,
+                                      color: activeColor,
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                   ],
                                 );
                               }),
-
                               titlesData: FlTitlesData(
                                 topTitles: const AxisTitles(
                                     sideTitles: SideTitles(showTitles: false)),
@@ -402,7 +420,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                                 leftTitles: ReportUI.leftAxis(
                                   title: yAxisTitle,
                                   interval: interval,
-                                  format: (v) => v.toStringAsFixed(0),
                                 ),
                                 bottomTitles: ReportUI.bottomAxis(
                                   title: xAxisTitle,
@@ -416,53 +433,50 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                                     if (res.isWeekly) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          'Week ${i + 1}',
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
+                                        child: Text('Week ${i + 1}',
+                                            style: const TextStyle(fontSize: 10)),
                                       );
                                     }
 
                                     final d = res.points[i];
+
                                     if (res.isThreeHourly) {
-                                      // show 0,3,6...
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          '${d.hour}',
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
+                                        child: Text('${d.hour}',
+                                            style: const TextStyle(fontSize: 10)),
                                       );
                                     }
 
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        _formatMd(d),
-                                        style: const TextStyle(fontSize: 10),
-                                      ),
+                                      child: Text(_formatMd(d),
+                                          style: const TextStyle(fontSize: 10)),
                                     );
                                   },
                                 ),
                               ),
 
-                              // ✅ custom overlay tooltip (NO Firestore reload)
+                              // ✅ Custom overlay tooltip (no rebuild reload)
                               barTouchData: BarTouchData(
                                 enabled: true,
                                 handleBuiltInTouches: false,
                                 touchCallback: (event, rsp) {
                                   if (rsp == null || rsp.spot == null) {
                                     setState(() {
-                                      _touchedIndex = -1;
+                                      _touchedGroupIndex = -1;
+                                      _touchedRodIndex = -1;
                                       _tooltipPos = null;
                                     });
                                     return;
                                   }
+
                                   if (event is! FlTapUpEvent) return;
 
-                                  final idx = rsp.spot!.touchedBarGroup.x;
+                                  final spot = rsp.spot!;
                                   setState(() {
-                                    _touchedIndex = idx;
+                                    _touchedGroupIndex = spot.touchedBarGroupIndex;
+                                    _touchedRodIndex = spot.touchedRodDataIndex;
                                     _tooltipPos = event.localPosition;
                                   });
                                 },
@@ -470,7 +484,9 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                             ),
                           ),
 
-                          if (_touchedIndex >= 0 && _tooltipPos != null)
+                          if (_touchedGroupIndex >= 0 &&
+                              _touchedRodIndex >= 0 &&
+                              _tooltipPos != null)
                             Positioned(
                               left: (_tooltipPos!.dx - 95)
                                   .clamp(8.0, box.maxWidth - 190),
@@ -486,14 +502,15 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ Legend card
+                // ✅ Legend card (like Roles legend)
                 Center(
                   child: SizedBox(
                     width: 220,
                     child: ReportLegendCard(
-                      title: 'Revenue',
+                      title: 'Type of Users',
                       items: const [
-                        ReportLegendItem(color: revenueColor, label: 'Revenue'),
+                        ReportLegendItem(color: newColor, label: 'New users'),
+                        ReportLegendItem(color: activeColor, label: 'Active users'),
                       ],
                     ),
                   ),
@@ -506,11 +523,17 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
     );
   }
 
-  Widget _buildTooltip(_RevenueRangeResult res) {
-    final idx = _touchedIndex;
+  Widget _buildTooltip(_UsersOverviewResult res) {
+    final idx = _touchedGroupIndex;
+    final rod = _touchedRodIndex;
+
+    final isNew = rod == 0;
+    final color = isNew ? newColor : activeColor;
+    final label = isNew ? 'New' : 'Active';
+    final value = isNew ? res.newSeries[idx] : res.activeSeries[idx];
+
     final start = res.points[idx];
     final end = res.pointEndDates[idx];
-    final value = res.values[idx];
 
     String title;
     if (res.isWeekly) {
@@ -524,42 +547,46 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
 
     return ReportFloatingTooltip(
       title: title,
-      line2: 'RM ${value.toStringAsFixed(2)}',
-      color: revenueColor,
+      line2: '$label: $value',
+      color: color,
     );
   }
 }
 
-class _RevenueRangeResult {
-  final double total;
-  final int count;
-  final double avg;
+class _UsersOverviewResult {
+  final int totalUsers;
+  final int newUsers;
+  final int activeUsers;
 
   final List<DateTime> points;
   final List<DateTime> pointEndDates;
-  final List<double> values;
+
+  final List<int> newSeries;
+  final List<int> activeSeries;
 
   final bool isWeekly;
   final bool isThreeHourly;
 
-  _RevenueRangeResult({
-    required this.total,
-    required this.count,
-    required this.avg,
+  _UsersOverviewResult({
+    required this.totalUsers,
+    required this.newUsers,
+    required this.activeUsers,
     required this.points,
     required this.pointEndDates,
-    required this.values,
+    required this.newSeries,
+    required this.activeSeries,
     required this.isWeekly,
     required this.isThreeHourly,
   });
 
-  factory _RevenueRangeResult.empty() => _RevenueRangeResult(
-    total: 0,
-    count: 0,
-    avg: 0,
+  factory _UsersOverviewResult.empty() => _UsersOverviewResult(
+    totalUsers: 0,
+    newUsers: 0,
+    activeUsers: 0,
     points: const [],
     pointEndDates: const [],
-    values: const [],
+    newSeries: const [],
+    activeSeries: const [],
     isWeekly: false,
     isThreeHourly: false,
   );
@@ -571,6 +598,7 @@ class _KpiCard extends StatelessWidget {
   final String subtitle;
 
   const _KpiCard({
+    super.key,
     required this.title,
     required this.value,
     required this.subtitle,
@@ -579,6 +607,7 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: 180,
       padding: ReportUI.cardPadding,
       decoration: BoxDecoration(
         color: Colors.white,
@@ -590,7 +619,8 @@ class _KpiCard extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54)),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(value,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 2),
           Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
         ],

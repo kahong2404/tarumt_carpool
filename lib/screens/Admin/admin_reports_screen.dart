@@ -1,60 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:tarumt_carpool/screens/Admin/Report/completion_report_screen.dart';
 
-// ✅ Import each report screen here
+import 'Report/users_overview_report_screen.dart';
+import 'package:tarumt_carpool/screens/Admin/Report/completion_report_screen.dart';
+import 'package:tarumt_carpool/screens/Admin/Report/users_role_distribution_report_screen.dart';
 import 'Report/peak_hour_report_screen.dart';
 import 'Report/revenue_report_screen.dart';
+import 'package:tarumt_carpool/screens/Admin/Report/rating_distribution_report_screen.dart';
+import 'package:tarumt_carpool/screens/Admin/Report/driver_verification_funnel_report_screen.dart';
 
 class AdminReportsScreen extends StatelessWidget {
   const AdminReportsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Add new report cards by adding a new item here
-    // Team member guide:
-    // 1) Create new report screen (e.g., cancellation_report_screen.dart)
-    // 2) Import it above
-    // 3) Add a ReportItem below with title/subtitle/icon/screenBuilder
     final reports = <ReportItem>[
       ReportItem(
+        title: 'Users Overview Report',
+        icon: Icons.groups_rounded,
+        screenBuilder: (_) => const UsersOverviewReportScreen(),
+      ),
+      ReportItem(
+        title: 'Users Roles Distribution Report',
+        icon: Icons.manage_accounts_outlined,
+        screenBuilder: (_) => const UsersRoleDistributionReportScreen(),
+      ),
+      ReportItem(
+        title: 'Driver Verification Funnel Report',
+        icon: Icons.verified_user_outlined,
+        screenBuilder: (_) => const DriverVerificationFunnelReportScreen(),
+      ),
+      ReportItem(
         title: 'Peak Hour Report',
-        subtitle: 'Created vs Completed per hour (0–23)',
         icon: Icons.bar_chart_rounded,
         screenBuilder: (_) => const PeakHourCreatedCompletedReportScreen(),
       ),
-
       ReportItem(
         title: 'Completion Report',
-        subtitle: 'Completion & cancellation rate',
         icon: Icons.check_circle_outline,
         screenBuilder: (_) => const CompletionReportScreen(),
       ),
-
+      ReportItem(
+        title: 'Ratings Distribution Report',
+        icon: Icons.star_rate_rounded,
+        screenBuilder: (_) => const RatingDistributionReportScreen(),
+      ),
       ReportItem(
         title: 'Revenue Report',
-        subtitle: 'Total revenue & average fare',
         icon: Icons.payments_outlined,
         screenBuilder: (_) => const RevenueReportScreen(),
       ),
-
-      // ============================================================
-      // ✅ TEAMMATE: ADD NEW REPORTS BELOW
-      // Example:
-      //
-      // ReportItem(
-      //   title: 'Cancellation Report',
-      //   subtitle: 'Cancellation by hour + reason',
-      //   icon: Icons.cancel_outlined,
-      //   screenBuilder: (_) => const CancellationReportScreen(),
-      // ),
-      //
-      // ReportItem(
-      //   title: 'Revenue Report',
-      //   subtitle: 'Total revenue & average fare',
-      //   icon: Icons.payments_outlined,
-      //   screenBuilder: (_) => const RevenueReportScreen(),
-      // ),
-      // ============================================================
     ];
 
     return Scaffold(
@@ -79,17 +73,17 @@ class AdminReportsScreen extends StatelessWidget {
               Expanded(
                 child: GridView.builder(
                   itemCount: reports.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    mainAxisExtent: 175, // ✅ increase height (try 175, 180 if needed)
+                    mainAxisExtent: 160,
                   ),
                   itemBuilder: (context, i) {
                     final r = reports[i];
                     return _ReportCard(
                       title: r.title,
-                      subtitle: r.subtitle,
                       icon: r.icon,
                       onTap: () {
                         Navigator.of(context).push(
@@ -110,13 +104,11 @@ class AdminReportsScreen extends StatelessWidget {
 
 class ReportItem {
   final String title;
-  final String subtitle;
   final IconData icon;
   final WidgetBuilder screenBuilder;
 
   ReportItem({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.screenBuilder,
   });
@@ -124,13 +116,11 @@ class ReportItem {
 
 class _ReportCard extends StatelessWidget {
   final String title;
-  final String subtitle;
   final IconData icon;
   final VoidCallback onTap;
 
   const _ReportCard({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.onTap,
   });
@@ -140,50 +130,42 @@ class _ReportCard extends StatelessWidget {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      elevation: 0,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // ✅ Centered Icon Box
               Container(
-                width: 44,
-                height: 44,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: 28,
+                  ),
+                ),
               ),
-              const SizedBox(height: 10),
 
+              const SizedBox(height: 14),
+
+              // ✅ Centered Title
               Text(
                 title,
-                maxLines: 1,
+                textAlign: TextAlign.center,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
-              ),
-              const SizedBox(height: 6),
-
-              Expanded(
-                child: Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.black54),
-                ),
-              ),
-
-              const SizedBox(height: 6),
-              const Text(
-                'Tap to view',
-                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),
