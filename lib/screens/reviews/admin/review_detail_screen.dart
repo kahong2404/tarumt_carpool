@@ -56,7 +56,7 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
           final stars = raw is int ? raw : (raw as num?)?.toInt() ?? 0;
 
           final ts = data['createdAt'] as Timestamp?;
-          final dateText = ts == null ? '' : ts.toDate().toString();
+          final dateText = ts == null ? '' : _formatTimeThenDate(ts.toDate());
 
           return ListView(
             padding: const EdgeInsets.all(14),
@@ -83,7 +83,6 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // ✅ Driver name above rider name; clickable
                     _ClickableUserName(
                       label: 'Driver: ',
                       userId: driverId,
@@ -147,7 +146,6 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
                       ),
                     ],
 
-                    // ✅ Buttons INSIDE the form/card
                     const SizedBox(height: 14),
 
                     if (isSuspicious) ...[
@@ -234,6 +232,35 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
         },
       ),
     );
+  }
+
+  // ✅ 01:35 13 March 2026
+  static String _formatTimeThenDate(DateTime dt) {
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final day = dt.day.toString();
+    final month = _monthName(dt.month);
+    final year = dt.year.toString();
+    return '$hh:$mm $day $month $year';
+  }
+
+  static String _monthName(int m) {
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (m < 1 || m > 12) return '-';
+    return months[m - 1];
   }
 }
 

@@ -1,6 +1,7 @@
 // lib/screens/wallet/wallet_transactions_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import '../../services/payment/wallet_service.dart';
 import 'wallet_transaction_detail_screen.dart';
@@ -14,13 +15,9 @@ class WalletTransactionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final wallet = WalletService();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transactions'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return AppScaffold(
+      title: 'Wallet Transaction',
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: wallet.allTxStream(),
         builder: (context, snap) {
           if (snap.hasError) {
@@ -50,26 +47,25 @@ class WalletTransactionsScreen extends StatelessWidget {
               final d = docs[i];
               final data = d.data();
 
-              final title = (data['title'] ?? data['type'] ?? 'Transaction').toString();
+              final title =
+              (data['title'] ?? data['type'] ?? 'Transaction').toString();
               final amountCents = (data['amountCents'] ?? 0) as int;
 
               final ts = data['createdAt'];
               final createdAt = ts is Timestamp ? ts.toDate() : null;
-              final dateText = createdAt == null
-                  ? '-'
-                  : '${createdAt.day.toString().padLeft(2, '0')}/'
-                  '${createdAt.month.toString().padLeft(2, '0')}/'
-                  '${createdAt.year} '
-                  '${createdAt.hour.toString().padLeft(2, '0')}:'
-                  '${createdAt.minute.toString().padLeft(2, '0')}';
+
+              // ✅ SAME FORMAT AS DETAIL SCREEN: "01:35 13 March 2026"
+              final dateText =
+              createdAt == null ? '-' : _formatTimeThenDate(createdAt);
 
               final isMinus = amountCents < 0;
               final amountText =
                   '${isMinus ? '-' : '+'} RM ${(amountCents.abs() / 100).toStringAsFixed(2)}';
 
               return ListTile(
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(dateText), // ✅ date only, no status
+                title: Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(dateText), // ✅ time first, then date
                 trailing: Text(
                   amountText,
                   style: TextStyle(
@@ -79,7 +75,9 @@ class WalletTransactionsScreen extends StatelessWidget {
                 ),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => WalletTransactionDetailScreen(txDoc: d)),
+                  MaterialPageRoute(
+                    builder: (_) => WalletTransactionDetailScreen(txDoc: d),
+                  ),
                 ),
               );
             },
@@ -87,5 +85,34 @@ class WalletTransactionsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  // ✅ "HH:mm d MMMM yyyy" => e.g. "01:35 13 March 2026"
+  static String _formatTimeThenDate(DateTime dt) {
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final day = dt.day.toString(); // no leading zero
+    final month = _monthName(dt.month);
+    final year = dt.year.toString();
+    return '$hh:$mm $day $month $year';
+  }
+
+  static String _monthName(int m) {
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (m < 1 || m > 12) return '-';
+    return months[m - 1];
   }
 }

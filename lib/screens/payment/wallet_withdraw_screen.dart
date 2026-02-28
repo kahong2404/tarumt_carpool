@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
+import 'package:tarumt_carpool/widgets/primary_button.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
+
 import '../../services/payment/wallet_service.dart';
 
 class WalletWithdrawScreen extends StatefulWidget {
@@ -27,22 +31,49 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
 
   bool get canWithdrawAtAll => widget.currentBalanceCents > minRemainCents;
 
+  String _friendlyError(Object e) {
+    var msg = e.toString().trim();
+
+    const prefixes = [
+      'Bad state: ',
+      'Exception: ',
+      'FirebaseException: ',
+    ];
+    for (final p in prefixes) {
+      if (msg.startsWith(p)) msg = msg.substring(p.length);
+    }
+
+    if (msg.isEmpty) return 'Withdrawal request failed. Please try again.';
+    return msg;
+  }
+
   Future<void> submit() async {
     if (!canWithdrawAtAll) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Balance must be more than RM20.00 to withdraw')),
+        const SnackBar(content: Text('Balance must be more than RM20.00 to withdraw.')),
       );
       return;
     }
+
     if (amountCents <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount')),
+        const SnackBar(content: Text('Please enter a valid withdrawal amount.')),
       );
       return;
     }
+
+    // ✅ Prevent "Bad state" by validating remaining balance locally
+    final remain = widget.currentBalanceCents - amountCents;
+    if (remain < minRemainCents) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must keep at least RM20.00 after withdrawal.')),
+      );
+      return;
+    }
+
     if (_accCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill account number')),
+        const SnackBar(content: Text('Please enter your account number.')),
       );
       return;
     }
@@ -55,13 +86,18 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
         accountNumber: _accCtrl.text.trim(),
       );
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Withdraw success: RM ${(amountCents / 100).toStringAsFixed(2)}')),
+        SnackBar(
+          content: Text(
+            'Withdrawal submitted: RM ${(amountCents / 100).toStringAsFixed(2)}',
+          ),
+        ),
       );
-      if (mounted) Navigator.pop(context);
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Withdraw failed: $e')),
+        SnackBar(content: Text(_friendlyError(e))),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -79,31 +115,47 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
   Widget build(BuildContext context) {
     final balanceRm = widget.currentBalanceCents / 100.0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Withdraw'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView(
+    return AppScaffold(
+      title: 'Withdraw',
+      child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
+              color: Colors.white,
               border: Border.all(color: Colors.black12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                  color: Colors.black.withOpacity(0.06),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  'Current balance:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  'Current balance: RM ${balanceRm.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  'RM ${balanceRm.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Rule: balance must be > RM20.00 and must keep RM20.00 after withdraw.',
+                  'A minimum wallet balance of RM20.00 must be maintained after withdrawal.',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
@@ -111,7 +163,11 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
           ),
           const SizedBox(height: 14),
 
-          _Field(label: 'Amount (RM)', controller: _amountCtrl, hint: 'e.g. 50'),
+          PrimaryTextField(
+            controller: _amountCtrl,
+            label: 'Amount (RM)',
+            keyboardType: TextInputType.number,
+          ),
           const SizedBox(height: 12),
 
           const Text('Bank', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -127,56 +183,34 @@ class _WalletWithdrawScreenState extends State<WalletWithdrawScreen> {
             ],
             onChanged: (v) => setState(() => _bank = v ?? _bank),
             decoration: InputDecoration(
+              isDense: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: primary, width: 2),
+              ),
             ),
           ),
           const SizedBox(height: 12),
 
-          _Field(label: 'Account Number', controller: _accCtrl, hint: 'e.g. 1234567890'),
+          PrimaryTextField(
+            controller: _accCtrl,
+            label: 'Account Number',
+            keyboardType: TextInputType.number,
+          ),
           const SizedBox(height: 18),
 
-          SizedBox(
-            height: 44,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: _loading ? null : submit,
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Submit Withdraw', style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
+          PrimaryButton(
+            text: 'Withdraw',
+            loading: _loading,
+            onPressed: _loading ? null : submit,
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final String hint;
-  const _Field({required this.label, required this.controller, required this.hint});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: label.contains('Amount') ? TextInputType.number : TextInputType.text,
-          decoration: InputDecoration(
-            hintText: hint,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-      ],
     );
   }
 }

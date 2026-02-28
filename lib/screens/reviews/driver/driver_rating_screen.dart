@@ -51,122 +51,122 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
 
     return AppScaffold(
       title: 'My Review',
-        child: Column(
-          children: [
-            DriverReviewFilterBar(
-              starFilter: _starFilter,
-              descending: _descending,
-              onStarChanged: (v) => setState(() => _starFilter = v),
-              onSortChanged: (v) => setState(() => _descending = v),
-            ),
-            Expanded(
-              child: StreamBuilder<_DriverHeaderVM>(
-                stream: headerStream,
-                builder: (context, headerSnap) {
-                  final header = headerSnap.data ??
-                      const _DriverHeaderVM(name: 'Driver', photoUrl: null);
+      child: Column(
+        children: [
+          DriverReviewFilterBar(
+            starFilter: _starFilter,
+            descending: _descending,
+            onStarChanged: (v) => setState(() => _starFilter = v),
+            onSortChanged: (v) => setState(() => _descending = v),
+          ),
+          Expanded(
+            child: StreamBuilder<_DriverHeaderVM>(
+              stream: headerStream,
+              builder: (context, headerSnap) {
+                final header = headerSnap.data ??
+                    const _DriverHeaderVM(name: 'Driver', photoUrl: null);
 
-                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: summaryStream,
-                    builder: (context, summarySnap) {
-                      if (summarySnap.hasError) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Text(
-                              'Error: ${summarySnap.error}',
-                              textAlign: TextAlign.center,
-                            ),
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: summaryStream,
+                  builder: (context, summarySnap) {
+                    if (summarySnap.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Text(
+                            'Error: ${summarySnap.error}',
+                            textAlign: TextAlign.center,
                           ),
-                        );
-                      }
-                      if (!summarySnap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      final summaryDocs = summarySnap.data!.docs;
-                      final summary = _computeSummary(summaryDocs);
-
-                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: listStream,
-                        builder: (context, listSnap) {
-                          if (listSnap.hasError) {
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Text(
-                                  'Error: ${listSnap.error}',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            );
-                          }
-                          if (!listSnap.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-
-                          final docs = listSnap.data!.docs;
-
-                          return ListView(
-                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
-                            children: [
-                              _SummaryCard(
-                                name: header.name,
-                                photoUrl: header.photoUrl, // ✅ show pic
-                                avg: summary.avg,
-                                total: summary.total,
-                                counts: summary.counts,
-                                barColor: primary,
-                              ),
-                              const SizedBox(height: 12),
-                              if (docs.isEmpty)
-                                const _EmptyCard(
-                                  'No reviews found for this filter.',
-                                )
-                              else
-                                ...docs.map((doc) {
-                                  final data = doc.data();
-
-                                  final rideId =
-                                  (data['rideId'] ?? '').toString();
-                                  final riderId =
-                                  (data['riderId'] ?? '').toString();
-                                  final comment =
-                                  (data['commentText'] ?? '').toString();
-
-                                  final raw = data['ratingScore'];
-                                  final score = raw is int
-                                      ? raw
-                                      : (raw as num?)?.toInt() ?? 0;
-
-                                  final ts = data['createdAt'] as Timestamp?;
-                                  final dateText =
-                                  ts == null ? '' : ts.toDate().toString();
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: _ReviewListCard(
-                                      rideId: rideId,
-                                      riderId: riderId,
-                                      stars: score,
-                                      comment: comment,
-                                      dateText: dateText,
-                                    ),
-                                  );
-                                }),
-                            ],
-                          );
-                        },
+                        ),
                       );
-                    },
-                  );
-                },
-              ),
+                    }
+                    if (!summarySnap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final summaryDocs = summarySnap.data!.docs;
+                    final summary = _computeSummary(summaryDocs);
+
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: listStream,
+                      builder: (context, listSnap) {
+                        if (listSnap.hasError) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Text(
+                                'Error: ${listSnap.error}',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        }
+                        if (!listSnap.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final docs = listSnap.data!.docs;
+
+                        return ListView(
+                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
+                          children: [
+                            _SummaryCard(
+                              name: header.name,
+                              photoUrl: header.photoUrl,
+                              avg: summary.avg,
+                              total: summary.total,
+                              counts: summary.counts,
+                              barColor: primary,
+                            ),
+                            const SizedBox(height: 12),
+                            if (docs.isEmpty)
+                              const _EmptyCard(
+                                'No reviews found for this filter.',
+                              )
+                            else
+                              ...docs.map((doc) {
+                                final data = doc.data();
+
+                                final rideId = (data['rideId'] ?? '').toString();
+                                final riderId =
+                                (data['riderId'] ?? '').toString();
+                                final comment =
+                                (data['commentText'] ?? '').toString();
+
+                                final raw = data['ratingScore'];
+                                final score = raw is int
+                                    ? raw
+                                    : (raw as num?)?.toInt() ?? 0;
+
+                                final ts = data['createdAt'] as Timestamp?;
+                                final dateText = ts == null
+                                    ? ''
+                                    : _formatTimeThenDate(ts.toDate()); // ✅ NEW FORMAT
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: _ReviewListCard(
+                                    rideId: rideId,
+                                    riderId: riderId,
+                                    stars: score,
+                                    comment: comment,
+                                    dateText: dateText,
+                                  ),
+                                );
+                              }),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -181,6 +181,35 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
         photoUrl: photo.isEmpty ? null : photo,
       );
     });
+  }
+
+  // ✅ SAME FORMAT: "HH:mm d MMMM yyyy" (e.g. "01:35 13 March 2026")
+  static String _formatTimeThenDate(DateTime dt) {
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final day = dt.day.toString(); // no leading zero
+    final month = _monthName(dt.month);
+    final year = dt.year.toString();
+    return '$hh:$mm $day $month $year';
+  }
+
+  static String _monthName(int m) {
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (m < 1 || m > 12) return '-';
+    return months[m - 1];
   }
 }
 
@@ -222,7 +251,7 @@ _RatingSummary _computeSummary(
 
 class _SummaryCard extends StatelessWidget {
   final String name;
-  final String? photoUrl; // ✅ ADD
+  final String? photoUrl;
   final double avg;
   final int total;
   final Map<int, int> counts;
@@ -230,7 +259,7 @@ class _SummaryCard extends StatelessWidget {
 
   const _SummaryCard({
     required this.name,
-    required this.photoUrl, // ✅ ADD
+    required this.photoUrl,
     required this.avg,
     required this.total,
     required this.counts,
@@ -289,7 +318,8 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Text(
                 avg.toStringAsFixed(1),
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style:
+                const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
               const SizedBox(width: 6),
               RatingStarsDisplay(value: avg, size: 18),
@@ -298,19 +328,35 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '($total Ratings)',
-            style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+                color: Colors.black54, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
           RatingDistributionRow(
-              star: 5, count: counts[5] ?? 0, total: total, barColor: barColor),
+              star: 5,
+              count: counts[5] ?? 0,
+              total: total,
+              barColor: barColor),
           RatingDistributionRow(
-              star: 4, count: counts[4] ?? 0, total: total, barColor: barColor),
+              star: 4,
+              count: counts[4] ?? 0,
+              total: total,
+              barColor: barColor),
           RatingDistributionRow(
-              star: 3, count: counts[3] ?? 0, total: total, barColor: barColor),
+              star: 3,
+              count: counts[3] ?? 0,
+              total: total,
+              barColor: barColor),
           RatingDistributionRow(
-              star: 2, count: counts[2] ?? 0, total: total, barColor: barColor),
+              star: 2,
+              count: counts[2] ?? 0,
+              total: total,
+              barColor: barColor),
           RatingDistributionRow(
-              star: 1, count: counts[1] ?? 0, total: total, barColor: barColor),
+              star: 1,
+              count: counts[1] ?? 0,
+              total: total,
+              barColor: barColor),
         ],
       ),
     );
@@ -357,7 +403,6 @@ class _ReviewListCard extends StatelessWidget {
           Text('Ride ID: $rideId',
               style: const TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: (riderId.trim().isEmpty)
                 ? const Stream.empty()
@@ -369,14 +414,16 @@ class _ReviewListCard extends StatelessWidget {
               if (riderId.trim().isEmpty) {
                 return const Text(
                   'Rider: -',
-                  style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.black54, fontWeight: FontWeight.w700),
                 );
               }
 
               if (!snap.hasData || !snap.data!.exists) {
                 return const Text(
                   'Rider: ...',
-                  style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.black54, fontWeight: FontWeight.w700),
                 );
               }
 
@@ -387,11 +434,11 @@ class _ReviewListCard extends StatelessWidget {
                 'Rider: $riderName',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                    color: Colors.black87, fontWeight: FontWeight.w800),
               );
             },
           ),
-
           const SizedBox(height: 8),
           RatingStarsDisplay(value: stars.toDouble(), size: 18),
           const SizedBox(height: 10),

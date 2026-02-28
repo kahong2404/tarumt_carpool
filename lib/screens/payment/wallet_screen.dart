@@ -1,8 +1,9 @@
 // lib/screens/wallet/wallet_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
-import '../../services/payment/wallet_service.dart';
+import 'package:tarumt_carpool/services/payment/wallet_service.dart';
 import 'wallet_topup_screen.dart';
 import 'wallet_withdraw_screen.dart';
 import 'wallet_transactions_screen.dart';
@@ -17,14 +18,9 @@ class WalletScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final wallet = WalletService();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment Wallet'),
-        centerTitle: true,
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView(
+    return AppScaffold(
+      title: 'Payment Wallet',
+      child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -48,8 +44,6 @@ class WalletScreen extends StatelessWidget {
               }
 
               final data = snap.data?.data() ?? {};
-
-              // ✅ Firestore key is walletBalance (cents int)
               final balanceCents = (data['walletBalance'] ?? 0) as int;
 
               return _BalanceCard(
@@ -61,7 +55,8 @@ class WalletScreen extends StatelessWidget {
                 onWithdraw: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => WalletWithdrawScreen(currentBalanceCents: balanceCents),
+                    builder: (_) =>
+                        WalletWithdrawScreen(currentBalanceCents: balanceCents),
                   ),
                 ),
               );
@@ -125,10 +120,12 @@ class _BalanceCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
                     onPressed: onTopUp,
-                    child: const Text('+ Top Up'),
+                    child: const Text('Top Up'),
                   ),
                 ),
               ),
@@ -140,7 +137,9 @@ class _BalanceCard extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: primary,
                       side: const BorderSide(color: primary),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
                     onPressed: onWithdraw,
                     child: const Text('Withdraw'),
@@ -151,7 +150,7 @@ class _BalanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Top up min RM20 • Must keep RM20 after withdraw',
+            '• Top up min RM20\n• Must keep RM20 after withdraw',
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
         ],
@@ -191,7 +190,11 @@ class _TransactionsCard extends StatelessWidget {
               ),
               IconButton(
                 onPressed: onViewAll,
-                icon: const Icon(Icons.receipt_long, color: Colors.black54),
+                icon: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.black54,
+                  size: 18,
+                ),
               ),
             ],
           ),
@@ -226,7 +229,9 @@ class _TransactionsCard extends StatelessWidget {
               }
 
               return Column(
-                children: docs.map((d) => _TxRow(doc: d, onTap: () => onTapTx(d))).toList(),
+                children: docs
+                    .map((d) => _TxRow(doc: d, onTap: () => onTapTx(d)))
+                    .toList(),
               );
             },
           ),
@@ -242,6 +247,24 @@ class _TxRow extends StatelessWidget {
 
   const _TxRow({required this.doc, required this.onTap});
 
+  String _monthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return months[(month - 1).clamp(0, 11)];
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = doc.data();
@@ -252,13 +275,14 @@ class _TxRow extends StatelessWidget {
     final ts = data['createdAt'];
     final createdAt = ts is Timestamp ? ts.toDate() : null;
 
+    // ✅ time first then full date: "14:09 13 June 2028"
     final dateText = createdAt == null
         ? '-'
-        : '${createdAt.day.toString().padLeft(2, '0')}/'
-        '${createdAt.month.toString().padLeft(2, '0')}/'
-        '${createdAt.year} '
-        '${createdAt.hour.toString().padLeft(2, '0')}:'
-        '${createdAt.minute.toString().padLeft(2, '0')}';
+        : '${createdAt.hour.toString().padLeft(2, '0')}:'
+        '${createdAt.minute.toString().padLeft(2, '0')} '
+        '${createdAt.day} '
+        '${_monthName(createdAt.month)} '
+        '${createdAt.year}';
 
     final isMinus = amountCents < 0;
     final amountText =
@@ -276,8 +300,6 @@ class _TxRow extends StatelessWidget {
                 children: [
                   Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-
-                  // ✅ only date time, no status
                   Text(
                     dateText,
                     style: const TextStyle(fontSize: 12, color: Colors.black54),

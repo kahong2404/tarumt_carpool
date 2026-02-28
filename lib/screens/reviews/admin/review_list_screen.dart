@@ -41,6 +41,7 @@ class _AdminReviewListScreenState extends State<AdminReviewListScreen> {
       suspiciousFilter: _susFilterBool,
       star: _starInt,
     );
+
     return AppScaffold(
       title: 'Review Management',
       child: Column(
@@ -81,12 +82,14 @@ class _AdminReviewListScreenState extends State<AdminReviewListScreen> {
                     final comment = (data['commentText'] ?? '').toString();
 
                     final rawScore = data['ratingScore'];
-                    final score = rawScore is int ? rawScore : (rawScore as num?)?.toInt() ?? 0;
+                    final score = rawScore is int
+                        ? rawScore
+                        : (rawScore as num?)?.toInt() ?? 0;
 
                     final isSuspicious = (data['isSuspicious'] ?? false) == true;
 
                     final ts = data['createdAt'] as Timestamp?;
-                    final dateText = ts == null ? '' : _prettyDate(ts.toDate());
+                    final dateText = ts == null ? '' : _formatTimeThenDate(ts.toDate());
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -118,20 +121,39 @@ class _AdminReviewListScreenState extends State<AdminReviewListScreen> {
     );
   }
 
-  String _prettyDate(DateTime d) => '${d.day} ${_monthName(d.month)} ${d.year}';
+  // ✅ 01:35 13 March 2026
+  static String _formatTimeThenDate(DateTime dt) {
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final day = dt.day.toString();
+    final month = _monthName(dt.month);
+    final year = dt.year.toString();
+    return '$hh:$mm $day $month $year';
+  }
 
-  String _monthName(int m) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+  static String _monthName(int m) {
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
-    return months[(m - 1).clamp(0, 11)];
+    if (m < 1 || m > 12) return '-';
+    return months[m - 1];
   }
 }
 
 class _AdminFilterBar extends StatelessWidget {
   final String suspiciousFilter; // all / sus / ok
-  final String starFilter;       // all / 5 / 4 / 3 / 2 / 1
+  final String starFilter; // all / 5 / 4 / 3 / 2 / 1
   final bool descending;
 
   final ValueChanged<String> onSuspiciousChanged;
@@ -270,8 +292,6 @@ class _AdminReviewCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                 ),
               ),
-
-              // show stars (or keep single star icon if you prefer)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(5, (i) {
@@ -285,18 +305,14 @@ class _AdminReviewCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 8),
-
           Text(
             c.isEmpty ? '-' : c,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
           ),
-
           const SizedBox(height: 10),
-
           Row(
             children: [
               Expanded(
@@ -314,7 +330,6 @@ class _AdminReviewCard extends StatelessWidget {
               ),
             ],
           ),
-
           if (isSuspicious) ...[
             const SizedBox(height: 8),
             const Text(

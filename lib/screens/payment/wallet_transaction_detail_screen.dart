@@ -17,16 +17,13 @@ class WalletTransactionDetailScreen extends StatelessWidget {
 
     final ts = data['createdAt'];
     final createdAt = ts is Timestamp ? ts.toDate() : null;
-    final dateText = createdAt == null
-        ? '-'
-        : '${createdAt.day.toString().padLeft(2, '0')}/'
-        '${createdAt.month.toString().padLeft(2, '0')}/'
-        '${createdAt.year} '
-        '${createdAt.hour.toString().padLeft(2, '0')}:'
-        '${createdAt.minute.toString().padLeft(2, '0')}';
+
+    // ✅ ONE LINE FORMAT: 01:35 1 March 2026
+    final dateText = createdAt == null ? '-' : _formatTimeThenDate(createdAt);
 
     final isDebit = amountCents < 0;
-    final amountText = '${isDebit ? '-' : '+'}RM ${(amountCents.abs() / 100).toStringAsFixed(2)}';
+    final amountText =
+        '${isDebit ? '-' : '+'}RM ${(amountCents.abs() / 100).toStringAsFixed(2)}';
 
     final ref = data['ref'];
     final refMap = ref is Map ? ref.cast<String, dynamic>() : <String, dynamic>{};
@@ -34,19 +31,19 @@ class WalletTransactionDetailScreen extends StatelessWidget {
     final rows = <MapEntry<String, String>>[];
 
     rows.add(MapEntry('Transaction Type', _prettyType(type, method)));
-    rows.add(MapEntry('Date/Time', dateText)); // ✅ keep date/time only (no status)
+    rows.add(MapEntry('Date/Time', dateText));
 
-    // Reference fields
     final bank = refMap['bank']?.toString();
     final accMasked = refMap['accountNumberMasked']?.toString();
     final pi = refMap['paymentIntentId']?.toString();
     final methods = refMap['methods'];
 
     if (bank != null && bank.isNotEmpty) rows.add(MapEntry('Bank', bank));
-    if (accMasked != null && accMasked.isNotEmpty) rows.add(MapEntry('Account', accMasked));
+    if (accMasked != null && accMasked.isNotEmpty) {
+      rows.add(MapEntry('Account', accMasked));
+    }
     if (pi != null && pi.isNotEmpty) rows.add(MapEntry('Wallet Ref', pi));
 
-    // ✅ If methods has [card, link] => show only Card
     if (methods is List && methods.isNotEmpty) {
       final list = methods.map((e) => e.toString()).toList();
       final shown = list.contains('card') ? ['Card'] : list.map(_cap).toList();
@@ -79,6 +76,34 @@ class WalletTransactionDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ✅ 01:35 1 March 2026
+  static String _formatTimeThenDate(DateTime dt) {
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final day = dt.day.toString();
+    final month = _monthName(dt.month);
+    final year = dt.year.toString();
+    return '$hh:$mm $day $month $year';
+  }
+
+  static String _monthName(int m) {
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return months[m - 1];
   }
 
   static String _prettyType(String type, String method) {
