@@ -123,13 +123,13 @@ class RideRepository {
     // ✅ PRE-CHECK: driver can't accept if already has active ride
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: currentDriverId)
-        .where('driverStatus', isEqualTo: activeDrivers)
+        .where('driverStatus', whereIn: activeDrivers)
         .where('rideStatus', whereIn: activeStatuses)
         .limit(1)
         .get();
 
     if (activeRideSnap.docs.isNotEmpty) {
-      throw Exception('You already have an active ride.');
+      throw Exception('You already have an active ride or you hav.');
     }
 
     return _db.runTransaction<String>((tx) async {

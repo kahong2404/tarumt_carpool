@@ -5,6 +5,7 @@ import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
 import 'package:tarumt_carpool/screens/Driver/edit_post_screen.dart';
 import 'package:tarumt_carpool/screens/Driver/create_post_rides_screen.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class DriverHomePage extends StatefulWidget {
   const DriverHomePage({super.key});
@@ -33,9 +34,9 @@ class _DriverHomePageState extends State<DriverHomePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
+    return AppScaffold(
+      title: "Driver Home",
+      child: SafeArea(
         child: RefreshIndicator(
           onRefresh: _onRefresh,
           child: SingleChildScrollView(
@@ -45,7 +46,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // =========================
-                // Header: Welcome (NAME ONLY ✅)
+                // Welcome Header (NAME ONLY)
                 // =========================
                 FutureBuilder<AppUser?>(
                   future: _meFuture,
@@ -64,7 +65,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
                     if (snap.hasData && snap.data != null) {
                       final user = snap.data!;
-                      final name = user.name.trim(); // ✅ SHOW NAME
+                      final name = user.name.trim();
                       if (name.isNotEmpty) displayName = name;
                     }
 

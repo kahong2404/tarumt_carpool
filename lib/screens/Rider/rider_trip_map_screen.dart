@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tarumt_carpool/theme/app_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tarumt_carpool/screens/Rider/rider_tab_scaffold.dart';
@@ -196,13 +197,18 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),  // entire page background color
       appBar: AppBar(
+        backgroundColor: AppColors.brandBlue, // app bar background color
+        foregroundColor: Colors.white, // app bar foreground color
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => const RiderTabScaffold()),
+              MaterialPageRoute(
+                builder: (_) => const RiderTabScaffold(skipAutoResumeOnce: true),
+              ),
                   (route) => false,
             );
           },
@@ -332,7 +338,7 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
                 Positioned(
                   left: 16,
                   right: 16,
-                  bottom: 170,
+                  bottom: 250,
                   child: ElevatedButton.icon(
                     onPressed: () => _openGoogleMaps(route.from, route.to),
                     icon: const Icon(Icons.navigation),

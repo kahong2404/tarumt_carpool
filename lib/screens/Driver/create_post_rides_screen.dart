@@ -6,6 +6,7 @@ import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
 import 'package:tarumt_carpool/services/google_direction_service.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class PostRides extends StatefulWidget {
   const PostRides({super.key});
@@ -241,13 +242,9 @@ class _PostRidesState extends State<PostRides> {
   Widget build(BuildContext context) {
     final blue = const Color(0xFF1E73FF);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: const Text('Create Post'),
-        backgroundColor: blue,
-      ),
-      body: SingleChildScrollView(
+    return AppScaffold(
+      title: 'Create Post',
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,5 +433,201 @@ class _PostRidesState extends State<PostRides> {
         ),
       ),
     );
+
+    // return Scaffold(
+    //   appBar: AppBar(
+    //     leading: const BackButton(),
+    //     title: const Text('Create Post'),
+    //     backgroundColor: blue,
+    //   ),
+    //   body: SingleChildScrollView(
+    //     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    //     child: Column(
+    //       crossAxisAlignment: CrossAxisAlignment.start,
+    //       children: [
+    //         const Text(
+    //           'Post Your Ride',
+    //           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+    //         ),
+    //         const SizedBox(height: 4),
+    //         const Text(
+    //           'Share your journey and help others reach their destination',
+    //           style: TextStyle(fontSize: 13, color: Colors.black54),
+    //         ),
+    //         const SizedBox(height: 18),
+    //
+    //         // Start Point
+    //         TextField(
+    //           controller: _pickupCtrl,
+    //           readOnly: true,
+    //           decoration: _dec(
+    //             'Starting Point',
+    //             Icons.location_on_outlined,
+    //             hint: 'Tap to select starting point',
+    //           ),
+    //           onTap: _loading ? null : _selectStartPoint,
+    //         ),
+    //         const SizedBox(height: 12),
+    //
+    //         // Destination
+    //         TextField(
+    //           controller: _destinationCtrl,
+    //           readOnly: true,
+    //           decoration: _dec(
+    //             'Destination',
+    //             Icons.flag_outlined,
+    //             hint: 'Tap to select destination',
+    //           ),
+    //           onTap: _loading ? null : _selectDestination,
+    //         ),
+    //         const SizedBox(height: 12),
+    //
+    //         // Date + Time
+    //         Row(
+    //           children: [
+    //             Expanded(
+    //               child: TextField(
+    //                 controller: _dateCtrl,
+    //                 readOnly: true,
+    //                 decoration: _dec('Date', Icons.calendar_month_outlined),
+    //                 onTap: _loading
+    //                     ? null
+    //                     : () async {
+    //                   final picked = await showDatePicker(
+    //                     context: context,
+    //                     firstDate: DateTime.now(),
+    //                     lastDate: DateTime.now().add(const Duration(days: 365)),
+    //                     initialDate: DateTime.now(),
+    //                   );
+    //                   if (picked != null) {
+    //                     _selectedDate = picked;
+    //                     _dateCtrl.text =
+    //                     '${picked.day}/${picked.month}/${picked.year}';
+    //                     setState(() {});
+    //                   }
+    //                 },
+    //               ),
+    //             ),
+    //             const SizedBox(width: 12),
+    //             Expanded(
+    //               child: TextField(
+    //                 controller: _timeCtrl,
+    //                 readOnly: true,
+    //                 decoration: _dec('Time', Icons.access_time_outlined),
+    //                 onTap: _loading
+    //                     ? null
+    //                     : () async {
+    //                   final picked = await showTimePicker(
+    //                     context: context,
+    //                     initialTime: TimeOfDay.now(),
+    //                   );
+    //                   if (picked != null) {
+    //                     _selectedTime = picked;
+    //                     _timeCtrl.text = picked.format(context);
+    //                     setState(() {});
+    //                   }
+    //                 },
+    //               ),
+    //             ),
+    //           ],
+    //         ),
+    //         const SizedBox(height: 12),
+    //
+    //         // Seats
+    //         TextField(
+    //           controller: _seatsCtrl,
+    //           keyboardType: TextInputType.number,
+    //           decoration: _dec('Seats Available', Icons.event_seat_outlined),
+    //         ),
+    //         const SizedBox(height: 12),
+    //
+    //         // Fare (Auto)
+    //         TextField(
+    //           controller: _fareCtrl,
+    //           readOnly: true,
+    //           decoration: _dec(
+    //             'Ride Fare (Auto)',
+    //             Icons.attach_money_outlined,
+    //             hint: 'Select pickup & destination',
+    //           ),
+    //         ),
+    //
+    //         if (_distanceKm != null) ...[
+    //           const SizedBox(height: 8),
+    //           Text(
+    //             'Distance: ${_distanceKm!.toStringAsFixed(1)} km',
+    //             style: const TextStyle(color: Colors.black54),
+    //           ),
+    //         ],
+    //
+    //         const SizedBox(height: 14),
+    //
+    //         // Tip box
+    //         Container(
+    //           width: double.infinity,
+    //           padding: const EdgeInsets.all(12),
+    //           decoration: BoxDecoration(
+    //             color: blue.withOpacity(0.08),
+    //             borderRadius: BorderRadius.circular(8),
+    //             border: Border.all(color: blue.withOpacity(0.3)),
+    //           ),
+    //           child: const Row(
+    //             crossAxisAlignment: CrossAxisAlignment.start,
+    //             children: [
+    //               Icon(Icons.lightbulb_outline, color: Colors.blue),
+    //               SizedBox(width: 8),
+    //               Expanded(
+    //                 child: Text(
+    //                   'Tip: Fare is calculated automatically based on distance. Please be punctual to build a good reputation with passengers!',
+    //                   style: TextStyle(fontSize: 12.5),
+    //                 ),
+    //               ),
+    //             ],
+    //           ),
+    //         ),
+    //
+    //         const SizedBox(height: 20),
+    //
+    //         SizedBox(
+    //           width: double.infinity,
+    //           height: 48,
+    //           child: ElevatedButton(
+    //             onPressed: _loading ? null : _postRide,
+    //             style: ElevatedButton.styleFrom(
+    //               backgroundColor: const Color(0xFF2B6CFF),
+    //             ),
+    //             child: _loading
+    //                 ? const SizedBox(
+    //               height: 20,
+    //               width: 20,
+    //               child: CircularProgressIndicator(strokeWidth: 2),
+    //             )
+    //                 : const Text(
+    //               'Post Your Ride',
+    //               style: TextStyle(
+    //                 fontWeight: FontWeight.w700,
+    //                 color: Colors.white,
+    //               ),
+    //             ),
+    //           ),
+    //         ),
+    //         const SizedBox(height: 10),
+    //
+    //         SizedBox(
+    //           width: double.infinity,
+    //           height: 44,
+    //           child: ElevatedButton(
+    //             onPressed: _loading ? null : () => Navigator.pop(context),
+    //             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+    //             child: const Text(
+    //               'Cancel',
+    //               style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+    //             ),
+    //           ),
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:tarumt_carpool/theme/app_colors.dart';
 
 import '../../repositories/ride_repository.dart';
 import '../../services/driver_presence_service.dart';
@@ -161,6 +162,8 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
+        backgroundColor: AppColors.brandBlue,
+        foregroundColor: Colors.white,
         title: const Text('Ride Requests'),
         actions: [
           IconButton(
@@ -187,13 +190,10 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
       )
           : Column(
         children: [
-          // ✅ Active ride banner/card (top)
           _ActiveRideSection(
             driverId: _driverId,
             rideRepo: _rideRepo,
           ),
-
-          // ✅ Request list (bottom)
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
@@ -227,8 +227,8 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
                   );
                 }
 
-                // distance filter
-                final filtered = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final filtered =
+                <QueryDocumentSnapshot<Map<String, dynamic>>>[];
                 for (final doc in docs) {
                   final d = doc.data();
                   final gp = d['pickupGeo'];
@@ -294,7 +294,8 @@ class _DriverRequestListScreenState extends State<DriverRequestListScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DriverTripMapScreen(rideId: rideId),
+                              builder: (_) =>
+                                  DriverTripMapScreen(rideId: rideId),
                             ),
                           );
                         } catch (e) {

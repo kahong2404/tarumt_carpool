@@ -7,7 +7,12 @@ import 'package:tarumt_carpool/screens/Rider/rider_trip_map_screen.dart';
 import '../notifications/notification_list_page.dart';
 import '../profile/dashboard/rider_profile_dashboard.dart';
 class RiderTabScaffold extends StatefulWidget {
-  const RiderTabScaffold({super.key});
+  const RiderTabScaffold({
+    super.key,
+    this.skipAutoResumeOnce = false,
+  });
+
+  final bool skipAutoResumeOnce;
 
   @override
   State<RiderTabScaffold> createState() => _RiderTabScaffoldState();
@@ -45,7 +50,9 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
   }
 
   Future<void> _autoResumeIfNeeded() async {
+    if (widget.skipAutoResumeOnce) return; // ✅ key line: stop the loop
     if (_autoResumeChecked || _autoResumeNavigated) return;
+
     _autoResumeChecked = true;
 
     final uid = _auth.currentUser?.uid;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import '../../repositories/ride_repository.dart';
 import 'rider_trip_map_screen.dart';
@@ -23,17 +24,15 @@ class RiderMyRidesScreen extends StatelessWidget {
       return const Center(child: Text('Not signed in'));
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      body: SafeArea(
+    return AppScaffold(
+      title: 'My Rides',
+      child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
           children: [
-            const Text(
-              'My Rides',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 12),
+            // ❌ removed the body header:
+            // const Text('My Rides', style: ...),
+            // const SizedBox(height: 12),
 
             // ✅ ACTIVE
             const _SectionTitle('Active ride'),
@@ -49,7 +48,6 @@ class RiderMyRidesScreen extends StatelessWidget {
 
                 final rideDocs = rideSnap.data!.docs;
 
-                // ✅ If active ride exists -> show ride (incoming/ongoing/etc)
                 if (rideDocs.isNotEmpty) {
                   final d = rideDocs.first.data();
                   final rideId = rideDocs.first.id;
@@ -74,7 +72,6 @@ class RiderMyRidesScreen extends StatelessWidget {
                   );
                 }
 
-                // ✅ Else: show active request (waiting/scheduled/incoming)
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _repo.streamRiderActiveRequest(uid),
                   builder: (context, reqSnap) {
@@ -95,7 +92,6 @@ class RiderMyRidesScreen extends StatelessWidget {
                     final status = (r['status'] ?? '').toString();
                     final activeRideId = (r['activeRideId'] ?? '').toString();
 
-                    // ✅ Decide where "Resume" should go
                     VoidCallback? onPrimary;
                     String primaryText = 'Resume';
 
@@ -125,7 +121,6 @@ class RiderMyRidesScreen extends StatelessWidget {
                         );
                       };
                     } else {
-                      // fallback (rare)
                       primaryText = 'Waiting...';
                       onPrimary = null;
                     }
@@ -133,13 +128,14 @@ class RiderMyRidesScreen extends StatelessWidget {
                     return _RideCard(
                       title: status == 'scheduled'
                           ? 'Scheduled request'
-                          : (status == 'waiting' ? 'Searching driver' : 'Driver found'),
+                          : (status == 'waiting'
+                          ? 'Searching driver'
+                          : 'Driver found'),
                       status: status,
                       pickup: (r['pickupAddress'] ?? '').toString(),
                       destination: (r['destinationAddress'] ?? '').toString(),
                       primaryButtonText: primaryText,
-                      onPrimary: onPrimary ?? () {}, // keeps UI safe
-                      // optional: if disabled
+                      onPrimary: onPrimary ?? () {},
                       primaryDisabled: onPrimary == null,
                     );
                   },
@@ -178,7 +174,8 @@ class RiderMyRidesScreen extends StatelessWidget {
                     final reviewId = (d['reviewId'] ?? '').toString().trim();
 
                     final canWrite = status == 'completed' && !hasReview;
-                    final canViewReview = status == 'completed' && reviewId.isNotEmpty;
+                    final canViewReview =
+                        status == 'completed' && reviewId.isNotEmpty;
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -207,7 +204,8 @@ class RiderMyRidesScreen extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => RiderSubmitReviewScreen(rideId: rideId),
+                              builder: (_) =>
+                                  RiderSubmitReviewScreen(rideId: rideId),
                             ),
                           );
                         }
@@ -216,7 +214,8 @@ class RiderMyRidesScreen extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ReviewViewScreen(reviewId: reviewId),
+                              builder: (_) =>
+                                  ReviewViewScreen(reviewId: reviewId),
                             ),
                           );
                         }
