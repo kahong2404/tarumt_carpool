@@ -350,7 +350,7 @@ class _RiderTripMapScreenState extends State<RiderTripMapScreen> {
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 20,
+                bottom: 60,
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(

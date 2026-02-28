@@ -15,6 +15,10 @@ class RideRepository {
     'arrived_destination',
   ];
 
+  static const activeDrivers = [
+    'approved'
+  ];
+
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('riderRequests');
 
@@ -119,6 +123,7 @@ class RideRepository {
     // ✅ PRE-CHECK: driver can't accept if already has active ride
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: currentDriverId)
+        .where('driverStatus', isEqualTo: activeDrivers)
         .where('rideStatus', whereIn: activeStatuses)
         .limit(1)
         .get();
@@ -246,6 +251,9 @@ class RideRepository {
 // =====================================================
 // STATUS TRANSITIONS (✅ RELEASE ON COMPLETED)
 // =====================================================
+// =====================================================
+// STATUS TRANSITIONS (✅ RELEASE ON COMPLETED + WALLET TX)
+// =====================================================
 extension RideStatusTransitions on RideRepository {
   Future<void> updateRideStatus({
     required String rideId,
@@ -280,11 +288,17 @@ extension RideStatusTransitions on RideRepository {
       // Completed extra reads
       DocumentReference<Map<String, dynamic>>? reqRef;
       DocumentSnapshot<Map<String, dynamic>>? reqSnap;
+
       DocumentReference<Map<String, dynamic>>? driverRef;
       DocumentSnapshot<Map<String, dynamic>>? driverSnap;
+
+      // ✅ wallet tx (release)
       DocumentReference<Map<String, dynamic>>? walletTxRef;
+      DocumentSnapshot<Map<String, dynamic>>? walletTxSnap;
+
       String? requestIdForRef;
       String? riderIdForRef;
+
       int? fareCents;
       Map<String, dynamic>? hold;
 
@@ -294,10 +308,14 @@ extension RideStatusTransitions on RideRepository {
         if (currentPay == 'released') throw Exception('Payment already released.');
         if (currentPay == 'refunded') throw Exception('Payment already refunded.');
 
-        final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
-        if (requestId.isEmpty) throw Exception('Ride missing requestId');
+        requestIdForRef =
+            (ride['requestId'] ?? ride['requestID'] ?? '').toString();
+        if (requestIdForRef.isEmpty) throw Exception('Ride missing requestId');
 
-        reqRef = _db.collection('riderRequests').doc(requestId);
+        riderIdForRef = (ride['riderID'] ?? '').toString();
+        if (riderIdForRef.isEmpty) throw Exception('Ride missing riderID');
+
+        reqRef = _db.collection('riderRequests').doc(requestIdForRef);
         reqSnap = await tx.get(reqRef);
         if (!reqSnap.exists) throw Exception('Request not found');
 
@@ -312,17 +330,21 @@ extension RideStatusTransitions on RideRepository {
         }
 
         // fare from ride preferred
-        fareCents = (ride['finalFare'] as num?)?.toInt()
-            ?? (hold?['amount'] as num?)?.toInt();
+        fareCents = (ride['finalFare'] as num?)?.toInt() ??
+            (hold?['amount'] as num?)?.toInt();
 
         if (fareCents == null || fareCents <= 0) {
           throw Exception('Invalid fare to release.');
         }
 
-        // ✅ credit the REAL driver from ride doc
+        // ✅ credit driver walletBalance
         driverRef = _db.collection('users').doc(rideDriverId);
         driverSnap = await tx.get(driverRef);
         if (!driverSnap.exists) throw Exception('Driver user not found');
+
+        // ✅ prepare wallet tx ref + read once (idempotent)
+        walletTxRef = _walletTx.doc('release_$rideId');
+        walletTxSnap = await tx.get(walletTxRef);
       }
 
       // --------------------
@@ -347,7 +369,10 @@ extension RideStatusTransitions on RideRepository {
       tx.update(rideRef, updates);
 
       // ✅ mirror request status update + hold released
-      if (nextStatus == 'completed' && reqRef != null && reqSnap != null && reqSnap.exists) {
+      if (nextStatus == 'completed' &&
+          reqRef != null &&
+          reqSnap != null &&
+          reqSnap.exists) {
         tx.update(reqRef, {
           'status': 'completed',
           'updatedAt': now,
@@ -360,13 +385,38 @@ extension RideStatusTransitions on RideRepository {
       }
 
       // ✅ credit driver walletBalance
-      if (nextStatus == 'completed' && driverRef != null && driverSnap != null) {
+      if (nextStatus == 'completed' &&
+          driverRef != null &&
+          driverSnap != null) {
         final d = driverSnap.data() as Map<String, dynamic>;
         final driverWallet = (d['walletBalance'] as num?)?.toInt() ?? 0;
 
         tx.update(driverRef, {
           'walletBalance': driverWallet + (fareCents ?? 0),
           'updatedAt': now,
+        });
+      }
+
+      // ✅ record wallet transaction history for driver (release)
+      if (nextStatus == 'completed' &&
+          walletTxRef != null &&
+          walletTxSnap != null &&
+          !walletTxSnap.exists) {
+        tx.set(walletTxRef, {
+          'type': 'release',
+          'status': 'posted',
+          'amountCents': fareCents ?? 0,
+
+          // for querying driver history
+          'walletOwnerUid': rideDriverId,
+
+          // audit trail
+          'fromUid': riderIdForRef,
+          'toUid': rideDriverId,
+
+          'rideId': rideId,
+          'requestId': requestIdForRef,
+          'createdAt': now,
         });
       }
     });
