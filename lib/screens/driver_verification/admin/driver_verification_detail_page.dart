@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart'; //import this
 import 'package:tarumt_carpool/models/driver_verification_application.dart';
 import 'package:tarumt_carpool/services/driver_verification/admin/driver_verification_review_service.dart';
 
@@ -221,14 +221,9 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: Text('Staff ID: ${widget.userId}'),
-      ),
-      body: StreamBuilder<DriverVerificationApplication?>(
+    return AppScaffold(   //change to this
+      title: 'Staff ID: ${widget.userId}',
+      child: StreamBuilder<DriverVerificationApplication?>(
         stream: _svc.streamApplication(widget.userId),
         builder: (context, snap) {
           if (snap.hasError) {
@@ -290,16 +285,17 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
                     onOpen: _openUrl,
                   ),
 
-                  // rejected: show current reject reason
-                  if (p.status == 'rejected' && currentRejectReason.isNotEmpty) ...[
+                  if (p.status == 'rejected' &&
+                      currentRejectReason.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     DvRejectCard(reason: currentRejectReason),
                   ],
 
-                  // pending after reapply: show previous reject reason
-                  if (p.status == 'pending' && lastReason.isNotEmpty) ...[
+                  if (p.status == 'pending' &&
+                      lastReason.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    DvRejectCard(reason: 'Previous reject reason: $lastReason'),
+                    DvRejectCard(
+                        reason: 'Previous reject reason: $lastReason'),
                   ],
                 ],
               ),

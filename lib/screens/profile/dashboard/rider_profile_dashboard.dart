@@ -16,8 +16,6 @@ class RiderProfileDashboard extends StatelessWidget {
   final _repo = UserRepository();
   final _svc = ProfileService();
 
-  static const bg = Color(0xFFF5F6FA);
-
   void _goHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
       context,
@@ -31,7 +29,7 @@ class RiderProfileDashboard extends StatelessWidget {
     final uid = _auth.currentUser!.uid;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFFF5F6FA),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: _repo.streamUserDoc(uid),
         builder: (context, snap) {
@@ -126,18 +124,8 @@ class RiderProfileDashboard extends StatelessWidget {
                     if (roleButton() is! SizedBox) const SizedBox(height: 10),
 
                     ProfileActionButton(
-                      label: 'Review',
-                      icon: Icons.rate_review_outlined,
-                      onTap: () {},
-                    ),
-                    ProfileActionButton(
                       label: 'Payment',
                       icon: Icons.payment_outlined,
-                      onTap: () {},
-                    ),
-                    ProfileActionButton(
-                      label: 'Payment',
-                      icon: Icons.star_border,
                       onTap: () {
                         Navigator.push(
                           context,

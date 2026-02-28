@@ -13,14 +13,12 @@ class AdminProfileDashboard extends StatelessWidget {
   final _auth = FirebaseAuth.instance;
   final _repo = UserRepository();
 
-  static const bg = Color(0xFFF5F6FA);
-
   @override
   Widget build(BuildContext context) {
     final uid = _auth.currentUser!.uid;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFFF5F6FA),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: _repo.streamUserDoc(uid),
         builder: (context, snap) {

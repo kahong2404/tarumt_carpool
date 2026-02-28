@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 import 'package:tarumt_carpool/repositories/driver_verification_repository.dart';
 import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_form_controller.dart';
@@ -90,22 +90,16 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
     final s = controller.state;
 
     if (s.loadinguserId) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF5F6FA),
-        body: Center(child: CircularProgressIndicator()),
+      return const AppScaffold(
+        title: 'Driver Verification',
+        child: Center(child: CircularProgressIndicator()),
       );
     }
 
     final disableSubmit = !controller.canSubmit;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: const Text('Driver Verification'),
-      ),
-      body: SafeArea(
+    return AppScaffold(
+      title: 'Driver Application',
+      child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
@@ -136,7 +130,8 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
                   value: _selectedColor,
                   isExpanded: true,
                   items: _colors
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .map((c) =>
+                      DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (v) {
                     if (v == null) return;
@@ -165,7 +160,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
             const SizedBox(height: 12),
 
             UploadBox(
-              title: 'Driving License (PDF)',
+              title: 'Driving License',
               hint: 'PDF only (max 5MB)',
               fileName: s.licenseName,
               fileUrl: s.licenseUrl,
@@ -181,7 +176,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
             const SizedBox(height: 12),
 
             UploadBox(
-              title: 'Car Insurance (PDF)',
+              title: 'Car Insurance',
               hint: 'PDF only (max 5MB)',
               fileName: s.insuranceName,
               fileUrl: s.insuranceUrl,
@@ -212,7 +207,10 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
                     controller.state.errors.isEmpty &&
                     !controller.state.submitting) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Submitted. Please wait for admin review.')),
+                    const SnackBar(
+                      content: Text(
+                          'Submitted. Please wait for admin review.'),
+                    ),
                   );
                   Navigator.pop(context);
                 }

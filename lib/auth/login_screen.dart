@@ -85,13 +85,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(1),
-                  child: ClipOval(
-                    child: Transform.scale(
-                      scale: 1.40,
-                      child: Image.asset(
-                        'assets/logo/logo_circle.png',
-                        fit: BoxFit.cover,
-                      ),
+                  child: Transform.scale(
+                    scale: 1.40,
+                    child: Image.asset(
+                      'assets/logo/logo_circle.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),

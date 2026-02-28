@@ -23,7 +23,6 @@ class DriverProfileDashboard extends StatelessWidget {
   final _repo = UserRepository();
   final _svc = ProfileService();
 
-  static const bg = Color(0xFFF5F6FA);
 
   void _goHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -38,7 +37,7 @@ class DriverProfileDashboard extends StatelessWidget {
     final uid = _auth.currentUser!.uid;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: const Color(0xFFF5F6FA),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: _repo.streamUserDoc(uid),
         builder: (context, snap) {
@@ -161,7 +160,7 @@ class DriverProfileDashboard extends StatelessWidget {
 
                   ProfileActionButton(
                   label: 'Payment',
-                  icon: Icons.star_border,
+                  icon: Icons.payment_outlined,
                   onTap: () {
                   Navigator.push(
                   context,
@@ -169,11 +168,6 @@ class DriverProfileDashboard extends StatelessWidget {
                   );
                   },
                   ),
-                    ProfileActionButton(
-                      label: 'My Vehicles',
-                      icon: Icons.directions_car_outlined,
-                      onTap: () {},
-                    ),
                     ProfileActionButton(
                       label: 'My Reviews',
                       icon: Icons.star_border,

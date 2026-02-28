@@ -14,7 +14,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ✅ Android may auto-init Firebase -> calling initializeApp again can throw duplicate-app.
-  // This handles: fresh run, hot restart, and native auto-init.
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -36,10 +35,34 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static const brandBlue = Color(0xFF1E73FF);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+
+      // ✅ GLOBAL THEME (this controls default button/text colors like "Select")
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: brandBlue,
+          primary: brandBlue,
+        ),
+
+        // Optional: make TextButton/OutlinedButton "Select" always blue
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: brandBlue,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: brandBlue,
+          ),
+        ),
+      ),
+
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
