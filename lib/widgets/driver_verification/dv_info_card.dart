@@ -28,19 +28,36 @@ class DvInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          // 🔹 Card Title (bold black)
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              color: Colors.black, // 🔥 ensure black
+            ),
+          ),
           const SizedBox(height: 10),
+
           for (final r in rows) ...[
+            // 🔹 Label (Vehicle Model / Plate Number / Color)
             Text(
               r.label,
               style: const TextStyle(
-                color: Colors.black54,
+                color: Colors.black,   // 🖤 BLACK
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 4),
-            Text(r.value, style: const TextStyle(fontWeight: FontWeight.w800)),
+
+            // 🔹 Value (Actual data → grey)
+            Text(
+              r.value.isEmpty ? 'Not submitted' : r.value,
+              style: const TextStyle(
+                color: Colors.black54, // ⚫ GREY
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 10),
           ],
         ],

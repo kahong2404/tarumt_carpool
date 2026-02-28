@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class VehicleAndDriverStatusCard extends StatelessWidget {
   final String vehicleModel;
-  final String status; // not_applied | pending | approved | rejected
+  final String status;
 
   const VehicleAndDriverStatusCard({
     super.key,
@@ -10,9 +10,6 @@ class VehicleAndDriverStatusCard extends StatelessWidget {
     required this.status,
   });
 
-  // -------------------------
-  // Status helpers
-  // -------------------------
   Color _statusBackgroundColor() {
     switch (status) {
       case 'approved':
@@ -54,50 +51,62 @@ class VehicleAndDriverStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // darker label + bigger title as you requested
-    const titleStyle = TextStyle(fontSize: 19, fontWeight: FontWeight.w900);
-    const labelStyle = TextStyle(
-      color: Color(0xFF111827), // deep
-      fontWeight: FontWeight.w900,
-    );
-    const valueStyle = TextStyle(
-      color: Color(0xFF111827),
-      fontWeight: FontWeight.w800,
-    );
-    const hintStyle = TextStyle(
-      color: Color(0xFF6B7280),
-      fontWeight: FontWeight.w800,
-    );
-
-    final isEmptyVehicle = vehicleModel.trim().isEmpty ||
-        vehicleModel.toLowerCase().contains('no vehicle');
+    final isEmptyVehicle =
+        vehicleModel.trim().isEmpty ||
+            vehicleModel.toLowerCase().contains('no vehicle');
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Vehicle & Driver Status', style: titleStyle),
-          const SizedBox(height: 14),
+          // 🔹 Card Title
+          const Text(
+            'Vehicle and Driver Status',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 12),
 
-          const Text('Vehicle', style: labelStyle),
-          const SizedBox(height: 6),
+          // 🔹 Label
+          const Text(
+            'Vehicle',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+
+          // 🔹 Value (grey)
           Text(
-            isEmptyVehicle ? 'No vehicle submitted' : vehicleModel,
-            style: isEmptyVehicle ? hintStyle : valueStyle,
+            isEmptyVehicle ? 'Not submitted' : vehicleModel,
+            style: const TextStyle(
+              fontSize: 14,                // 👈 ensure same size
+              fontWeight: FontWeight.w600, // 👈 same weight
+              color: Colors.black54,       // 👈 same grey
+            ),
           ),
 
           const SizedBox(height: 16),
 
-          const Text('Driver Verification Status', style: labelStyle),
+          const Text(
+            'Driver Verification Status',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 10),
 
-          // status pill
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -112,7 +121,7 @@ class VehicleAndDriverStatusCard extends StatelessWidget {
             child: Text(
               _statusLabel(),
               style: TextStyle(
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
                 color: _statusTextColor(),
               ),
             ),

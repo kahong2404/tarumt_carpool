@@ -9,13 +9,13 @@ import 'package:tarumt_carpool/widgets/driver_verification/status_button.dart';
 import 'package:tarumt_carpool/widgets/driver_verification/dv_info_card.dart';
 import 'package:tarumt_carpool/widgets/driver_verification/dv_files_card.dart';
 import 'package:tarumt_carpool/widgets/driver_verification/dv_reject_card.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import 'driver_verification_form_page.dart';
 
 class DriverVerificationCenterPage extends StatelessWidget {
   DriverVerificationCenterPage({super.key});
 
-  static const brandBlue = Color(0xFF1E73FF);
 
   final DriverVerificationService _svc = DriverVerificationService();
 
@@ -34,14 +34,10 @@ class DriverVerificationCenterPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: const Text('Driver Verification'),
-      ),
-      body: StreamBuilder<Map<String, dynamic>?>(
+
+    return AppScaffold(
+      title: 'Driver Verification Center',
+      child: StreamBuilder<Map<String, dynamic>?>(
         stream: _svc.streamMyVerification(),  //listens to Firestore in real time.
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -114,6 +110,7 @@ class DriverVerificationCenterPage extends StatelessWidget {
                   (view.status == 'not_applied' || view.status == 'rejected')
                       ? 'You can edit and submit your verification.'
                       : 'Your verification is locked while pending/approved.',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.black54),
                 ),
               ],

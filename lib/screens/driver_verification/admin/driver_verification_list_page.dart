@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import 'package:tarumt_carpool/models/driver_verification_application.dart';
 import 'package:tarumt_carpool/services/driver_verification/admin/driver_verification_review_service.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 import 'driver_verification_detail_page.dart';
 
 class DriverVerificationListPage extends StatefulWidget {
@@ -32,15 +33,9 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
   @override
   Widget build(BuildContext context) {
     final searching = _searchuserId.trim().isNotEmpty;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: const Text('Driver Verification List'),
-      ),
-      body: Column(
+      return AppScaffold(   //change to this
+        title: 'Driver Verification List',
+      child: Column(
         children: [
           _buildTopFilters(),
           Expanded(
@@ -74,14 +69,6 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
                   ),
                   onSubmitted: (v) => setState(() => _searchuserId = v.trim()),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  _searchCtrl.clear();
-                  setState(() => _searchuserId = '');
-                },
-                icon: const Icon(Icons.clear),
               ),
             ],
           ),
@@ -138,7 +125,11 @@ class _DriverVerificationListPageState extends State<DriverVerificationListPage>
         }
 
         final items = snap.data ?? [];
-        if (items.isEmpty) return const Center(child: Text('No application matches status filter.'));
+        if (items.isEmpty) {
+          return const Center(
+            child: Text('No application matches status filter.'),
+          );
+        }
 
         return ListView.separated(
           padding: const EdgeInsets.all(12),
@@ -240,12 +231,15 @@ class _AdminCard extends StatelessWidget {
     final status = app.profile.status;
     final c = _statusColor(status);
 
-    // ✅ CORRECT DATE: prefer updatedAt (admin reviewed), fallback submittedAt (first submit)
+    // ✅ prefer updatedAt (review time), fallback submittedAt (submit time)
     final dt = (app.updatedAt ?? app.submittedAt)?.toDate().toLocal();
-    final dateText = dt == null ? '-' : DateFormat('dd MMM yyyy').format(dt);
-    final timeText = dt == null ? '-' : DateFormat('hh:mm a').format(dt);
 
-    // ✅ CORRECT FIELD: DriverVerificationProfile uses vehicleModel
+    final dateText = dt == null ? '-' : DateFormat('dd MMM yyyy').format(dt);
+
+    // ✅ 24-hour format
+    final timeText = dt == null ? '-' : DateFormat('HH:mm').format(dt);
+
+    // (not used in UI now, but kept if you want later)
     final vehicleModel = app.profile.vehicleModel.trim().isEmpty
         ? 'Unknown Vehicle'
         : app.profile.vehicleModel.trim();
@@ -274,7 +268,7 @@ class _AdminCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    vehicleModel,
+                    app.userId,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
@@ -282,13 +276,11 @@ class _AdminCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Staff ID: ${app.userId}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '$dateText • $timeText',
-                    style: const TextStyle(color: Colors.black54),
+                    '$timeText\n$dateText',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
