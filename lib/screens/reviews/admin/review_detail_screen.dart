@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'package:tarumt_carpool/repositories/review_repository.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 import 'package:tarumt_carpool/widgets/primary_button.dart';
 import 'package:tarumt_carpool/widgets/danger_button.dart';
 import 'package:tarumt_carpool/widgets/reviews/rating_stars_display.dart';
@@ -24,198 +25,146 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text('Review Detail'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: _repo.streamReviewById(widget.reviewId),
-          builder: (context, snap) {
-            if (snap.hasError) {
-              return const Center(child: Text('Failed to load review'));
-            }
-            if (!snap.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snap.data!.exists) {
-              return const Center(child: Text('Review not found'));
-            }
+    return AppScaffold(
+      title: 'Review Detail',
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: _repo.streamReviewById(widget.reviewId),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return const Center(child: Text('Failed to load review'));
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snap.data!.exists) {
+            return const Center(child: Text('Review not found'));
+          }
 
-            final data = snap.data!.data() ?? {};
-            final status = (data['status'] ?? 'active').toString();
-            if (status == 'deleted') {
-              return const Center(child: Text('This review was deleted.'));
-            }
+          final data = snap.data!.data() ?? {};
+          final status = (data['status'] ?? 'active').toString();
+          if (status == 'deleted') {
+            return const Center(child: Text('This review was deleted.'));
+          }
 
-            final driverId = (data['driverId'] ?? '').toString();
-            final riderId = (data['riderId'] ?? '').toString();
-            final rideId = (data['rideId'] ?? '').toString();
-            final comment = (data['commentText'] ?? '').toString();
-            final isSuspicious = (data['isSuspicious'] ?? false) == true;
+          final driverId = (data['driverId'] ?? '').toString();
+          final riderId = (data['riderId'] ?? '').toString();
+          final rideId = (data['rideId'] ?? '').toString();
+          final comment = (data['commentText'] ?? '').toString();
+          final isSuspicious = (data['isSuspicious'] ?? false) == true;
 
-            final raw = data['ratingScore'];
-            final stars = raw is int ? raw : (raw as num?)?.toInt() ?? 0;
+          final raw = data['ratingScore'];
+          final stars = raw is int ? raw : (raw as num?)?.toInt() ?? 0;
 
-            final ts = data['createdAt'] as Timestamp?;
-            final dateText = ts == null ? '' : ts.toDate().toString();
+          final ts = data['createdAt'] as Timestamp?;
+          final dateText = ts == null ? '' : ts.toDate().toString();
 
-            return ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                        color: Colors.black.withOpacity(0.08),
+          return ListView(
+            padding: const EdgeInsets.all(14),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(0.08),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ride ID: $rideId',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // ✅ Driver name above rider name; clickable
+                    _ClickableUserName(
+                      label: 'Driver: ',
+                      userId: driverId,
+                      onTap: driverId.trim().isEmpty
+                          ? null
+                          : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AdminDriverRatingScreen(
+                              driverId: driverId,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _ClickableUserName(
+                      label: 'Rider: ',
+                      userId: riderId,
+                      onTap: null,
+                    ),
+
+                    const SizedBox(height: 14),
+                    RatingStarsDisplay(value: stars.toDouble(), size: 20),
+
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: primary.withOpacity(0.35),
+                          width: 1.6,
+                        ),
+                      ),
+                      child: Text(comment.trim().isEmpty ? '-' : comment.trim()),
+                    ),
+
+                    if (dateText.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        dateText,
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                        ),
                       ),
                     ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Ride ID: $rideId',
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 10),
 
-                      // ✅ Driver name above rider name; clickable
-                      _ClickableUserName(
-                        label: 'Driver: ',
-                        userId: driverId,
-                        onTap: driverId.trim().isEmpty
-                            ? null
-                            : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminDriverRatingScreen(driverId: driverId),
-                            ),
-                          );
-                        },
+                    if (isSuspicious) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Suspicious (under moderation)',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                      const SizedBox(height: 6),
-                      _ClickableUserName(
-                        label: 'Rider: ',
-                        userId: riderId,
-                        onTap: null,
-                      ),
+                    ],
 
-                      const SizedBox(height: 14),
-                      RatingStarsDisplay(value: stars.toDouble(), size: 20),
+                    // ✅ Buttons INSIDE the form/card
+                    const SizedBox(height: 14),
 
-                      const SizedBox(height: 14),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: primary.withOpacity(0.35),
-                            width: 1.6,
-                          ),
-                        ),
-                        child: Text(comment.trim().isEmpty ? '-' : comment.trim()),
-                      ),
-
-                      if (dateText.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          dateText,
-                          style: const TextStyle(
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-
-                      if (isSuspicious) ...[
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Suspicious (under moderation)',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-
-                      // ✅ Buttons INSIDE the form/card
-                      const SizedBox(height: 14),
-
-                      if (isSuspicious) ...[
-                        PrimaryButton(
-                          text: 'Change to No Suspicious',
-                          loading: _loadingMark,
-                          onPressed: _loadingMark
-                              ? null
-                              : () async {
-                            setState(() => _loadingMark = true);
-                            try {
-                              await _repo.adminMarkNotSuspicious(widget.reviewId);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Marked as not suspicious')),
-                              );
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed: $e')),
-                              );
-                            } finally {
-                              if (mounted) setState(() => _loadingMark = false);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-
-                      DangerButton(
-                        text: 'Delete Review',
-                        loading: _loadingDelete,
-                        onPressed: _loadingDelete
+                    if (isSuspicious) ...[
+                      PrimaryButton(
+                        text: 'Change to No Suspicious',
+                        loading: _loadingMark,
+                        onPressed: _loadingMark
                             ? null
                             : () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Delete review?'),
-                              content: const Text(
-                                'This will hide the review from everyone.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Cancel'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Delete'),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (ok != true) return;
-
-                          setState(() => _loadingDelete = true);
+                          setState(() => _loadingMark = true);
                           try {
-                            await _repo.adminDeleteReview(widget.reviewId);
+                            await _repo.adminMarkNotSuspicious(widget.reviewId);
                             if (!mounted) return;
-                            Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Review deleted')),
+                              const SnackBar(
+                                content: Text('Marked as not suspicious'),
+                              ),
                             );
                           } catch (e) {
                             if (!mounted) return;
@@ -223,19 +172,66 @@ class _AdminReviewDetailScreenState extends State<AdminReviewDetailScreen> {
                               SnackBar(content: Text('Failed: $e')),
                             );
                           } finally {
-                            if (mounted) {
-                              setState(() => _loadingDelete = false);
-                            }
+                            if (mounted) setState(() => _loadingMark = false);
                           }
                         },
                       ),
+                      const SizedBox(height: 10),
                     ],
-                  ),
+
+                    DangerButton(
+                      text: 'Delete Review',
+                      loading: _loadingDelete,
+                      onPressed: _loadingDelete
+                          ? null
+                          : () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete review?'),
+                            content: const Text(
+                              'This will hide the review from everyone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (ok != true) return;
+
+                        setState(() => _loadingDelete = true);
+                        try {
+                          await _repo.adminDeleteReview(widget.reviewId);
+                          if (!mounted) return;
+
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Review deleted')),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed: $e')),
+                          );
+                        } finally {
+                          if (mounted) setState(() => _loadingDelete = false);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

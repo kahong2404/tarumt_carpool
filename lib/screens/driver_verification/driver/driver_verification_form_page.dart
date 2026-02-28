@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
+
 import 'package:tarumt_carpool/repositories/driver_verification_repository.dart';
 import 'package:tarumt_carpool/models/driver_verification_profile.dart';
 import 'package:tarumt_carpool/services/driver_verification/driver/driver_verification_form_controller.dart';
@@ -13,12 +14,11 @@ class DriverVerificationFormPage extends StatefulWidget {
   const DriverVerificationFormPage({super.key});
 
   @override
-  State<DriverVerificationFormPage> createState() => _DriverVerificationFormPageState();
+  State<DriverVerificationFormPage> createState() =>
+      _DriverVerificationFormPageState();
 }
 
 class _DriverVerificationFormPageState extends State<DriverVerificationFormPage> {
-  static const brandBlue = Color(0xFF1E73FF);
-
   final _modelCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
 
@@ -61,7 +61,7 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
 
       final p = DriverVerificationProfile.fromMap(doc);
 
-      // Fill text fields (even if pending/approved/rejected)
+      // Fill text fields
       _modelCtrl.text = p.vehicleModel;
       _plateCtrl.text = p.plateNumber;
 
@@ -97,18 +97,13 @@ class _DriverVerificationFormPageState extends State<DriverVerificationFormPage>
     }
 
     final disableSubmit = !controller.canSubmit;
+
     return AppScaffold(
       title: 'Driver Application',
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            Text(
-              s.userId == null ? 'Staff ID: -' : 'Staff ID: ${s.userId}',
-              style: const TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 12),
-
             ErrorList(s.errors),
             if (s.errors.isNotEmpty) const SizedBox(height: 12),
 

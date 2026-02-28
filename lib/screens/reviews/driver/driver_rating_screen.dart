@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:tarumt_carpool/repositories/review_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import 'package:tarumt_carpool/widgets/reviews/driver_review_filter_bar.dart';
 import 'package:tarumt_carpool/widgets/reviews/rating_distribution_row.dart';
@@ -45,31 +46,27 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
       descending: _descending,
     );
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text('Driver Rating'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: StreamBuilder<Map<String, dynamic>?>(
-          stream: _userRepo.streamUserDoc(uid),
-          builder: (context, userSnap) {
-            final user = userSnap.data ?? {};
-            final name = (user['name'] ?? 'Driver').toString();
+    // ✅ Stream C: Driver header (name + photo)
+    final headerStream = _streamDriverHeader(uid);
 
-            return Column(
-              children: [
-                DriverReviewFilterBar(
-                  starFilter: _starFilter,
-                  descending: _descending,
-                  onStarChanged: (v) => setState(() => _starFilter = v),
-                  onSortChanged: (v) => setState(() => _descending = v),
-                ),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return AppScaffold(
+      title: 'My Review',
+        child: Column(
+          children: [
+            DriverReviewFilterBar(
+              starFilter: _starFilter,
+              descending: _descending,
+              onStarChanged: (v) => setState(() => _starFilter = v),
+              onSortChanged: (v) => setState(() => _descending = v),
+            ),
+            Expanded(
+              child: StreamBuilder<_DriverHeaderVM>(
+                stream: headerStream,
+                builder: (context, headerSnap) {
+                  final header = headerSnap.data ??
+                      const _DriverHeaderVM(name: 'Driver', photoUrl: null);
+
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: summaryStream,
                     builder: (context, summarySnap) {
                       if (summarySnap.hasError) {
@@ -105,7 +102,9 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
                             );
                           }
                           if (!listSnap.hasData) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
                           final docs = listSnap.data!.docs;
@@ -114,7 +113,8 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
                             padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
                             children: [
                               _SummaryCard(
-                                name: name,
+                                name: header.name,
+                                photoUrl: header.photoUrl, // ✅ show pic
                                 avg: summary.avg,
                                 total: summary.total,
                                 counts: summary.counts,
@@ -122,26 +122,34 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
                               ),
                               const SizedBox(height: 12),
                               if (docs.isEmpty)
-                                const _EmptyCard('No reviews found for this filter.')
+                                const _EmptyCard(
+                                  'No reviews found for this filter.',
+                                )
                               else
                                 ...docs.map((doc) {
                                   final data = doc.data();
 
-                                  final rideId = (data['rideId'] ?? '').toString();
-                                  final riderId = (data['riderId'] ?? '').toString(); // ✅ ADD
-                                  final comment = (data['commentText'] ?? '').toString();
+                                  final rideId =
+                                  (data['rideId'] ?? '').toString();
+                                  final riderId =
+                                  (data['riderId'] ?? '').toString();
+                                  final comment =
+                                  (data['commentText'] ?? '').toString();
 
                                   final raw = data['ratingScore'];
-                                  final score = raw is int ? raw : (raw as num?)?.toInt() ?? 0;
+                                  final score = raw is int
+                                      ? raw
+                                      : (raw as num?)?.toInt() ?? 0;
 
                                   final ts = data['createdAt'] as Timestamp?;
-                                  final dateText = ts == null ? '' : ts.toDate().toString();
+                                  final dateText =
+                                  ts == null ? '' : ts.toDate().toString();
 
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: _ReviewListCard(
                                       rideId: rideId,
-                                      riderId: riderId, // ✅ PASS riderId
+                                      riderId: riderId,
                                       stars: score,
                                       comment: comment,
                                       dateText: dateText,
@@ -153,14 +161,26 @@ class _DriverRatingScreenState extends State<DriverRatingScreen> {
                         },
                       );
                     },
-                  ),
-                ),
-              ],
-            );
-          },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-      ),
     );
+  }
+
+  /// ✅ Driver header from users/{uid} (name + photoUrl)
+  Stream<_DriverHeaderVM> _streamDriverHeader(String uid) {
+    return _userRepo.streamUserDoc(uid).map((user) {
+      final data = user ?? {};
+      final name = (data['name'] ?? 'Driver').toString();
+      final photo = (data['photoUrl'] ?? '').toString().trim();
+      return _DriverHeaderVM(
+        name: name,
+        photoUrl: photo.isEmpty ? null : photo,
+      );
+    });
   }
 }
 
@@ -169,11 +189,17 @@ class _RatingSummary {
   final int total;
   final double avg;
   final Map<int, int> counts; // 1..5
-  const _RatingSummary({required this.total, required this.avg, required this.counts});
+  const _RatingSummary({
+    required this.total,
+    required this.avg,
+    required this.counts,
+  });
 }
 
 /// ✅ compute summary from ALL reviews (not filtered)
-_RatingSummary _computeSummary(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
+_RatingSummary _computeSummary(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) {
   final counts = <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
   var sum = 0;
   var total = 0;
@@ -196,6 +222,7 @@ _RatingSummary _computeSummary(List<QueryDocumentSnapshot<Map<String, dynamic>>>
 
 class _SummaryCard extends StatelessWidget {
   final String name;
+  final String? photoUrl; // ✅ ADD
   final double avg;
   final int total;
   final Map<int, int> counts;
@@ -203,6 +230,7 @@ class _SummaryCard extends StatelessWidget {
 
   const _SummaryCard({
     required this.name,
+    required this.photoUrl, // ✅ ADD
     required this.avg,
     required this.total,
     required this.counts,
@@ -210,7 +238,11 @@ class _SummaryCard extends StatelessWidget {
   });
 
   String _initials(String n) {
-    final parts = n.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = n
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'D';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return '${parts[0][0].toUpperCase()}${parts[1][0].toUpperCase()}';
@@ -238,10 +270,19 @@ class _SummaryCard extends StatelessWidget {
           CircleAvatar(
             radius: 26,
             backgroundColor: Colors.black12,
-            child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w900)),
+            backgroundImage: (photoUrl == null) ? null : NetworkImage(photoUrl!),
+            child: (photoUrl == null)
+                ? Text(
+              initials,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            )
+                : null,
           ),
           const SizedBox(height: 10),
-          Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          Text(
+            name,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -260,11 +301,16 @@ class _SummaryCard extends StatelessWidget {
             style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
-          RatingDistributionRow(star: 5, count: counts[5] ?? 0, total: total, barColor: barColor),
-          RatingDistributionRow(star: 4, count: counts[4] ?? 0, total: total, barColor: barColor),
-          RatingDistributionRow(star: 3, count: counts[3] ?? 0, total: total, barColor: barColor),
-          RatingDistributionRow(star: 2, count: counts[2] ?? 0, total: total, barColor: barColor),
-          RatingDistributionRow(star: 1, count: counts[1] ?? 0, total: total, barColor: barColor),
+          RatingDistributionRow(
+              star: 5, count: counts[5] ?? 0, total: total, barColor: barColor),
+          RatingDistributionRow(
+              star: 4, count: counts[4] ?? 0, total: total, barColor: barColor),
+          RatingDistributionRow(
+              star: 3, count: counts[3] ?? 0, total: total, barColor: barColor),
+          RatingDistributionRow(
+              star: 2, count: counts[2] ?? 0, total: total, barColor: barColor),
+          RatingDistributionRow(
+              star: 1, count: counts[1] ?? 0, total: total, barColor: barColor),
         ],
       ),
     );
@@ -275,14 +321,14 @@ class _ReviewListCard extends StatelessWidget {
   static const primary = Color(0xFF1E73FF);
 
   final String rideId;
-  final String riderId; // ✅ ADD
+  final String riderId;
   final int stars;
   final String comment;
   final String dateText;
 
   const _ReviewListCard({
     required this.rideId,
-    required this.riderId, // ✅ ADD
+    required this.riderId,
     required this.stars,
     required this.comment,
     required this.dateText,
@@ -308,14 +354,17 @@ class _ReviewListCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ride ID: $rideId', style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text('Ride ID: $rideId',
+              style: const TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
 
-          /// ✅ Rider name under Ride ID (no extra file)
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: (riderId.trim().isEmpty)
                 ? const Stream.empty()
-                : FirebaseFirestore.instance.collection('users').doc(riderId).snapshots(),
+                : FirebaseFirestore.instance
+                .collection('users')
+                .doc(riderId)
+                .snapshots(),
             builder: (context, snap) {
               if (riderId.trim().isEmpty) {
                 return const Text(
@@ -359,7 +408,11 @@ class _ReviewListCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               dateText,
-              style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w700, fontSize: 12.5),
+              style: const TextStyle(
+                color: Colors.black54,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
             ),
           ],
         ],
@@ -383,4 +436,10 @@ class _EmptyCard extends StatelessWidget {
       child: Text(text, style: const TextStyle(color: Colors.black54)),
     );
   }
+}
+
+class _DriverHeaderVM {
+  final String name;
+  final String? photoUrl;
+  const _DriverHeaderVM({required this.name, required this.photoUrl});
 }

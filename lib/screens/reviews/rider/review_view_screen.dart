@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/rating_review.dart';
 import 'package:tarumt_carpool/repositories/review_repository.dart';
 import 'package:tarumt_carpool/repositories/user_repository.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 // split review widgets
 import 'package:tarumt_carpool/widgets/reviews/star_row.dart';
@@ -22,16 +23,9 @@ class ReviewViewScreen extends StatelessWidget {
     final repo = ReviewRepository();
     final userRepo = UserRepository();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text('Review Detail'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    return AppScaffold(
+      title: 'Review Detail',
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: repo.streamReviewById(reviewId),
           builder: (context, snap) {
             if (snap.hasError) {
@@ -160,7 +154,7 @@ class ReviewViewScreen extends StatelessWidget {
             );
           },
         ),
-      ),
-    );
+      );
+
   }
 }

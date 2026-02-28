@@ -7,8 +7,8 @@ import 'rider_trip_map_screen.dart';
 import 'rider_waiting_map_screen.dart'; // ✅ NEW: import waiting screen
 
 // ✅ Review screens
-import '../reviews/rider_submit_review_screen.dart';
-import '../reviews/review_view_screen.dart';
+import '../reviews/rider/rider_submit_review_screen.dart';
+import '../reviews/rider/review_view_screen.dart';
 
 class RiderMyRidesScreen extends StatelessWidget {
   RiderMyRidesScreen({super.key});

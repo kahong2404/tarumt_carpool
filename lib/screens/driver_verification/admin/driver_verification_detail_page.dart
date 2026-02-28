@@ -222,7 +222,7 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
   @override
   Widget build(BuildContext context) {
     return AppScaffold(   //change to this
-      title: 'Staff ID: ${widget.userId}',
+      title: 'Student / Staff ID: ${widget.userId}',
       child: StreamBuilder<DriverVerificationApplication?>(
         stream: _svc.streamApplication(widget.userId),
         builder: (context, snap) {
@@ -271,8 +271,8 @@ class _DriverVerificationDetailPageState extends State<DriverVerificationDetailP
                     title: 'Submitted Details',
                     rows: [
                       DvInfoRow(label: 'Staff ID', value: app.userId),
-                      DvInfoRow(label: 'Vehicle', value: vehicleModel),
-                      DvInfoRow(label: 'Plate', value: p.plateNumber),
+                      DvInfoRow(label: 'Vehicle Model', value: vehicleModel),
+                      DvInfoRow(label: 'Plate Number', value: p.plateNumber),
                       DvInfoRow(label: 'Color', value: p.color),
                     ],
                   ),

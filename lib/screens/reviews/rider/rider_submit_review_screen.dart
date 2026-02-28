@@ -10,6 +10,8 @@ import 'package:tarumt_carpool/widgets/reviews/review_white_card.dart';
 import 'package:tarumt_carpool/widgets/reviews/user_header.dart';
 import 'package:tarumt_carpool/widgets/reviews/star_picker.dart';
 
+import '../../../widgets/layout/app_scaffold.dart';
+
 class RiderSubmitReviewScreen extends StatefulWidget {
   final String rideId;
   const RiderSubmitReviewScreen({super.key, required this.rideId});
@@ -101,16 +103,9 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: primary,
-      appBar: AppBar(
-        title: const Text('Review and Rating'),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return AppScaffold(
+      title: 'Rate Your Ride',
+      child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: ReviewWhiteCard(
             child: Column(
@@ -163,7 +158,6 @@ class _RiderSubmitReviewScreenState extends State<RiderSubmitReviewScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 }

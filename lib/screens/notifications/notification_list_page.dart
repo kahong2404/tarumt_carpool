@@ -2,11 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/models/app_notification.dart';
 import 'package:tarumt_carpool/repositories/notification_repository.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class NotificationListPage extends StatelessWidget {
   NotificationListPage({super.key});
 
   final _repo = NotificationRepository();
+
   static const bg = Color(0xFFF5F6FA);
   static const brandBlue = Color(0xFF1E73FF);
 
@@ -16,15 +18,21 @@ class NotificationListPage extends StatelessWidget {
     final diff = DateTime.now().difference(d);
 
     if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    return '${diff.inDays} days ago';
   }
 
   IconData _iconForType(String type) {
     switch (type) {
       case 'driver_verification':
         return Icons.verified_user_outlined;
+      case 'ride_request_status':
+        return Icons.assignment_outlined;
+      case 'ride_status':
+        return Icons.directions_car_outlined;
+      case 'new_request':
+        return Icons.add_road_outlined;
       default:
         return Icons.notifications_none;
     }
@@ -32,14 +40,9 @@ class NotificationListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        title: const Text('Notification'),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return AppScaffold(
+      title: 'Notifications',
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _repo.streamMyNotifications(),
         builder: (context, snap) {
           if (snap.hasError) {
@@ -53,6 +56,7 @@ class NotificationListPage extends StatelessWidget {
               ),
             );
           }
+
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -62,9 +66,8 @@ class NotificationListPage extends StatelessWidget {
             return const Center(child: Text('No notifications'));
           }
 
-          final items = docs
-              .map((d) => AppNotification.fromDoc(d.id, d.data()))
-              .toList();
+          final items =
+          docs.map((d) => AppNotification.fromDoc(d.id, d.data())).toList();
 
           return ListView.separated(
             padding: const EdgeInsets.all(14),
@@ -72,26 +75,32 @@ class NotificationListPage extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final n = items[i];
+              final unread = !n.isRead;
+
+              final cardBg = unread ? const Color(0xFFEFF5FF) : Colors.white;
+              final borderColor =
+              unread ? brandBlue.withOpacity(0.25) : Colors.black12;
+              final iconColor = unread ? brandBlue : Colors.black45;
+              final titleWeight = unread ? FontWeight.w900 : FontWeight.w800;
 
               return InkWell(
                 onTap: () async {
-                  if (!n.isRead) await _repo.markRead(n.id);
+                  if (unread) {
+                    await _repo.markRead(n.id);
+                  }
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.black12),
+                    border: Border.all(color: borderColor),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        _iconForType(n.type),
-                        color: n.isRead ? Colors.black38 : brandBlue,
-                      ),
+                      Icon(_iconForType(n.type), color: iconColor),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -102,10 +111,7 @@ class NotificationListPage extends StatelessWidget {
                                 Expanded(
                                   child: Text(
                                     n.title,
-                                    style: TextStyle(
-                                      fontWeight:
-                                      n.isRead ? FontWeight.w700 : FontWeight.w900,
-                                    ),
+                                    style: TextStyle(fontWeight: titleWeight),
                                   ),
                                 ),
                                 const SizedBox(width: 8),

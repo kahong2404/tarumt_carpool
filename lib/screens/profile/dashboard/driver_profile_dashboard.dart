@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../notifications/notification_list_page.dart';
-import '../../reviews/driver_my_reviews_screen.dart';
 
 import '../../../auth/after_login_router.dart';
 import '../../../repositories/user_repository.dart';
@@ -10,7 +9,7 @@ import '../../../widgets/profile/profile_header.dart';
 import '../../../widgets/profile/profile_action_button.dart';
 import '../profile_detail_screen.dart';
 import '../../driver_verification/driver/driver_verification_center_page.dart';
-import '../../reviews/driver_rating_screen.dart';
+import '../../reviews/driver/driver_rating_screen.dart';
 import '../../payment/wallet_screen.dart';
 
 // ✅ adjust this import if your path is different
