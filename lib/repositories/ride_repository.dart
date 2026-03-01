@@ -407,10 +407,10 @@ extension RideStatusTransitions on RideRepository {
           'status': 'posted',
           'amountCents': fareCents ?? 0,
 
-          // for querying driver history
-          'walletOwnerUid': rideDriverId,
+          // ✅ IMPORTANT: match rules read/create expectations
+          'uid': rideDriverId,          // ✅ wallet owner (driver)
+          'walletOwnerUid': rideDriverId, // optional (keep if you want)
 
-          // audit trail
           'fromUid': riderIdForRef,
           'toUid': rideDriverId,
 

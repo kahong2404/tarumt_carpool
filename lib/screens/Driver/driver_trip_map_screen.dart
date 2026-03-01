@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tarumt_carpool/theme/app_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../repositories/ride_repository.dart';
@@ -176,6 +177,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
         nextStatus: nextStatus,
       );
     } catch (e) {
+      debugPrint('updateRideStatus error: $e');
       _snack('Failed: $e');
     } finally {
       if (mounted) setState(() => _actionLoading = false);
@@ -376,7 +378,11 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Trip Navigation')),
+      appBar:
+      AppBar(
+        backgroundColor: AppColors.brandBlue, // app bar background color
+        foregroundColor: Colors.white, // app bar foreground color
+        title: const Text('Trip Navigation')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
         builder: (context, snap) {
