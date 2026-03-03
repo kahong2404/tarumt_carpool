@@ -67,7 +67,7 @@ class RiderRequestRepository {
   /// ✅ Must have at least RM10 to create request
   Future<void> _ensureWalletMinToCreate(String uid) async {
     final userSnap = await _users.doc(uid).get();
-    if (!userSnap.exists) throw Exception('User not found');
+    if (!userSnap.exists) throw ('User not found');
 
     final data = userSnap.data() as Map<String, dynamic>;
     final wallet = (data['walletBalance'] as num?)?.toInt() ?? 0;
@@ -96,14 +96,14 @@ class RiderRequestRepository {
     required String routeDurationText,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Not logged in');
+    if (user == null) throw ('Not logged in');
 
     await _ensureNoActiveRequest(user.uid);
     await _ensureWalletMinToCreate(user.uid);
 
-    if (finalFareCents <= 0) throw Exception('Invalid fare');
-    if (routeDistanceKm <= 0) throw Exception('Invalid distance');
-    if (routeDurationText.trim().isEmpty) throw Exception('Invalid duration');
+    if (finalFareCents <= 0) throw ('Invalid fare');
+    if (routeDistanceKm <= 0) throw ('Invalid distance');
+    if (routeDurationText.trim().isEmpty) throw ('Invalid duration');
 
     final doc = _requests.doc();
     final requestId = doc.id;
@@ -160,14 +160,15 @@ class RiderRequestRepository {
     required String routeDurationText,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Not logged in');
+    if (user == null) throw ('Not logged in');
 
     await _ensureNoActiveRequest(user.uid);
     await _ensureWalletMinToCreate(user.uid);
+    await _ensureNoScheduledClash(user.uid, scheduledAt);
 
-    if (finalFareCents <= 0) throw Exception('Invalid fare');
-    if (routeDistanceKm <= 0) throw Exception('Invalid distance');
-    if (routeDurationText.trim().isEmpty) throw Exception('Invalid duration');
+    if (finalFareCents <= 0) throw ('Invalid fare');
+    if (routeDistanceKm <= 0) throw ('Invalid distance');
+    if (routeDurationText.trim().isEmpty) throw ('Invalid duration');
 
     final strings = _dateTimeToStrings(scheduledAt);
 
@@ -226,28 +227,60 @@ class RiderRequestRepository {
     }
     await batch.commit();
   }
+  /// ✅ Prevent scheduling too close to another scheduled booking
+  Future<void> _ensureNoScheduledClash(String uid, DateTime scheduledAt) async {
+    const buffer = Duration(minutes: 30);
 
+    final start = Timestamp.fromDate(scheduledAt.subtract(buffer));
+    final end = Timestamp.fromDate(scheduledAt.add(buffer));
+
+    final clash = await _requests
+        .where('riderId', isEqualTo: uid)
+        .where('status', isEqualTo: 'scheduled')
+        .where('scheduledAt', isGreaterThanOrEqualTo: start)
+        .where('scheduledAt', isLessThanOrEqualTo: end)
+        .limit(1)
+        .get();
+
+    if (clash.docs.isNotEmpty) {
+      throw (
+        'You already have a scheduled booking around that time. Please choose a different time.',
+      );
+    }
+  }
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamRequest(String requestId) {
     return _requests.doc(requestId).snapshots();
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamMyScheduledRequests() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Stream.empty();
+    }
+
+    return _requests
+        .where('riderId', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'scheduled')
+        .orderBy('scheduledAt', descending: false)
+        .snapshots();
+  }
   /// Rider cancels while waiting or scheduled
   Future<void> cancelRequest(String requestId) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Not logged in');
+    if (user == null) throw ('Not logged in');
 
     final ref = _requests.doc(requestId);
 
     await _db.runTransaction((tx) async {
       final snap = await tx.get(ref);
-      if (!snap.exists) throw Exception('Request not found');
+      if (!snap.exists) throw ('Request not found');
 
       final d = snap.data()!;
-      if (d['riderId'] != user.uid) throw Exception('Not your request');
+      if (d['riderId'] != user.uid) throw ('Not your request');
 
       final status = (d['status'] ?? '').toString();
       if (status != 'waiting' && status != 'scheduled') {
-        throw Exception('Cannot cancel after driver accepted');
+        throw ('Cannot cancel after driver accepted');
       }
 
       tx.update(ref, {

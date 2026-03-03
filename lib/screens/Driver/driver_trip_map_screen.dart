@@ -54,6 +54,11 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   static const double _arriveRadiusMeters = 99999999999.0;
   static const double _completeRadiusMeters = 99999999999.0;
 
+  // ✅ NEW: button layout control (raise all buttons)
+  static const double _bottomBase = 60; // increase to move higher
+  static const double _btnGap = 12;
+  static const double _btnH = 48;
+
   double _calcFare(double km) {
     final raw = _baseFare + (_ratePerKm * km);
     final withMin = raw < _minFare ? _minFare : raw;
@@ -184,7 +189,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     }
   }
 
-  // ✅ NEW: driver cancel ride
+  // ✅ driver cancel ride
   Future<void> _cancelRide(String status) async {
     if (_actionLoading) return;
 
@@ -292,6 +297,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     required String status,
     required LatLng pickup,
     required LatLng destination,
+    required double bottom, // ✅ NEW
   }) {
     if (status == 'completed' || status == 'cancelled') return null;
 
@@ -347,9 +353,9 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
     return Positioned(
       left: 16,
       right: 16,
-      bottom: 20,
+      bottom: bottom, // ✅ CHANGED
       child: SizedBox(
-        height: 48,
+        height: _btnH,
         child: ElevatedButton(
           onPressed: _actionLoading ? null : onPressed,
           style: ElevatedButton.styleFrom(
@@ -378,11 +384,11 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar:
-      AppBar(
-        backgroundColor: AppColors.brandBlue, // app bar background color
-        foregroundColor: Colors.white, // app bar foreground color
-        title: const Text('Trip Navigation')),
+      appBar: AppBar(
+        backgroundColor: AppColors.brandBlue,
+        foregroundColor: Colors.white,
+        title: const Text('Trip Navigation'),
+      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _rideRepo.streamRide(widget.rideId),
         builder: (context, snap) {
@@ -465,11 +471,21 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
             _computedFare = null;
           }
 
+          final actionBarBottom = _bottomBase;
           final actionBar = _buildActionBar(
             status: status,
             pickup: pickupLatLng,
             destination: destinationLatLng,
+            bottom: actionBarBottom,
           );
+
+          final mapsBottom = actionBar == null
+              ? _bottomBase
+              : (_bottomBase + _btnH + _btnGap);
+
+          final cancelBottom = actionBar == null
+              ? (_bottomBase + _btnH + _btnGap)
+              : (_bottomBase + (_btnH + _btnGap) * 2);
 
           return Stack(
             children: [
@@ -489,7 +505,7 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
                 Positioned(
                   left: 16,
                   right: 16,
-                  bottom: actionBar == null ? 20 : 80,
+                  bottom: mapsBottom,
                   child: ElevatedButton.icon(
                     onPressed: () => _openGoogleMaps(route.from, route.to),
                     icon: const Icon(Icons.navigation),
@@ -499,22 +515,24 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E73FF),
-                      minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(_btnH),
                     ),
                   ),
                 ),
 
-              // ✅ NEW: cancel ride button (only before ongoing)
+              // ✅ cancel ride button (only before ongoing)
               if (status == 'incoming' || status == 'arrived_pickup')
                 Positioned(
                   left: 16,
                   right: 16,
-                  bottom: actionBar == null ? 20 : 140,
+                  bottom: cancelBottom,
                   child: SizedBox(
-                    height: 48,
+                    height: _btnH,
                     child: ElevatedButton(
-                      onPressed: _actionLoading ? null : () => _cancelRide(status),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed:
+                      _actionLoading ? null : () => _cancelRide(status),
+                      style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.red),
                       child: _actionLoading
                           ? const SizedBox(
                         height: 18,
@@ -538,7 +556,8 @@ class _DriverTripMapScreenState extends State<DriverTripMapScreen> {
                 top: 12,
                 right: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: widget.enableDistanceGate
                         ? Colors.black.withOpacity(0.35)

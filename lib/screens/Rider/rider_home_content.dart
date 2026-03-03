@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
+import 'package:tarumt_carpool/screens/Rider/rider_scheduled_bookings_screen.dart';
 import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart';
+import 'package:tarumt_carpool/screens/payment/wallet_screen.dart';
 import 'package:tarumt_carpool/services/google_direction_service.dart';
 import 'package:tarumt_carpool/utils/geo_utils.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
@@ -56,6 +58,23 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     });
   }
 
+  void _openMyScheduled(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RiderScheduledBookingsScreen(repo: _repo),
+      ),
+    );
+  }
+
+  void _openWallet(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const WalletScreen(),
+      ),
+    );
+  }
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -302,9 +321,12 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
               RiderHomeHeader(
                 primaryColor: RiderHomeContent.primary,
                 onCreateRequestTap: () => _handleCreateRequest(context),
-                onWalletTap: () {},
+                onWalletTap: () => _openWallet(context),
                 onFilterTap: _openFilterDialog,
                 onScheduleTap: () => _handleScheduleRequest(context),
+
+                // ✅ NEW
+                onMyScheduledTap: () => _openMyScheduled(context),
               ),
               const SizedBox(height: 12),
               Expanded(

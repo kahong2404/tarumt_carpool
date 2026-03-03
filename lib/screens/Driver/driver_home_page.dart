@@ -5,6 +5,7 @@ import 'package:tarumt_carpool/repositories/user_repository.dart';
 import 'package:tarumt_carpool/models/app_user.dart';
 import 'package:tarumt_carpool/screens/Driver/edit_post_screen.dart';
 import 'package:tarumt_carpool/screens/Driver/create_post_rides_screen.dart';
+import 'package:tarumt_carpool/screens/payment/wallet_screen.dart';
 import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class DriverHomePage extends StatefulWidget {
@@ -89,8 +90,13 @@ class _DriverHomePageState extends State<DriverHomePage> {
                   children: [
                     _QuickAction(
                       icon: Icons.account_balance_wallet_outlined,
-                      title: "RM100",
-                      onTap: () {},
+                      title: "Wallet",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                        );
+                      },
                     ),
                     _QuickAction(
                       icon: Icons.add_box_outlined,

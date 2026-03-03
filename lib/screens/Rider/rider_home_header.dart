@@ -7,6 +7,9 @@ class RiderHomeHeader extends StatelessWidget {
   final VoidCallback onFilterTap;
   final VoidCallback onScheduleTap;
 
+  // ✅ add this if you want "My Scheduled"
+  final VoidCallback onMyScheduledTap;
+
   const RiderHomeHeader({
     super.key,
     required this.primaryColor,
@@ -14,13 +17,14 @@ class RiderHomeHeader extends StatelessWidget {
     required this.onWalletTap,
     required this.onFilterTap,
     required this.onScheduleTap,
+    required this.onMyScheduledTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18), // ✅ slightly more bottom padding
       decoration: BoxDecoration(
         color: primaryColor,
         borderRadius: const BorderRadius.only(
@@ -35,34 +39,39 @@ class RiderHomeHeader extends StatelessWidget {
             onTap: onCreateRequestTap,
           ),
           const SizedBox(height: 12),
-          Row(
+
+          // ✅ 2x2 grid (fix overflow)
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2, // ✅ controls tile height (bigger = shorter)
             children: [
-              Expanded(
-                child: _QuickTile(
-                  icon: Icons.account_balance_wallet_outlined,
-                  title: 'RM100',
-                  height: 72,
-                  onTap: onWalletTap,
-                ),
+              _QuickTile(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Wallet',
+                centerTitle: true,
+                onTap: onWalletTap,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickTile(
-                  icon: Icons.tune,
-                  title: 'Filter',
-                  height: 72,
-                  onTap: onFilterTap,
-                ),
+              _QuickTile(
+                icon: Icons.tune,
+                title: 'Filter',
+                centerTitle: true,
+                onTap: onFilterTap,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickTile(
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Schedule\nBooking',
-                  height: 72,
-                  centerTitle: true,
-                  onTap: onScheduleTap,
-                ),
+              _QuickTile(
+                icon: Icons.calendar_month_outlined,
+                title: 'Schedule\nBooking',
+                centerTitle: true,
+                onTap: onScheduleTap,
+              ),
+              _QuickTile(
+                icon: Icons.event_note_outlined,
+                title: 'My\nScheduled',
+                centerTitle: true,
+                onTap: onMyScheduledTap,
               ),
             ],
           ),
@@ -129,13 +138,11 @@ class _QuickTile extends StatelessWidget {
   final String title;
   final bool centerTitle;
   final VoidCallback onTap;
-  final double height;
 
   const _QuickTile({
     required this.icon,
     required this.title,
     required this.onTap,
-    required this.height,
     this.centerTitle = false,
   });
 
@@ -147,8 +154,7 @@ class _QuickTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          height: height,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.16),
             borderRadius: BorderRadius.circular(12),

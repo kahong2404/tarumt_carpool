@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tarumt_carpool/widgets/primary_text_field.dart';
 
 class SeatRequestDialog extends StatefulWidget {
   const SeatRequestDialog({super.key});
@@ -29,21 +30,36 @@ class _SeatRequestDialogState extends State<SeatRequestDialog> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Number of Seats'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          PrimaryTextField(
             controller: _controller,
+            label: 'Seats',
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              hintText: 'Enter seats (1–4)',
-              errorText: _error,
-              border: const OutlineInputBorder(),
-            ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: Colors.red,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Enter seats (1–4)',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
         ],
       ),
       actions: [
