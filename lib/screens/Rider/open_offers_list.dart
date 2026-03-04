@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
+import 'package:tarumt_carpool/screens/Rider/offer_details_page.dart';
 import 'package:tarumt_carpool/utils/geo_utils.dart';
 
 enum NearbyMode { pickup, dropoff }
@@ -258,7 +259,17 @@ class _DriverOfferCard extends StatelessWidget {
               Text('RM ${offer.fare.toStringAsFixed(2)}',
                   style: const TextStyle(fontWeight: FontWeight.w800)),
               const Spacer(),
-              OutlinedButton(onPressed: () {}, child: const Text('View')),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => OfferDetailsPage(offerId: offer.offerId!),
+                    ),
+                  );
+                },
+                child: const Text('View'),
+              ),
             ],
           ),
         ],
