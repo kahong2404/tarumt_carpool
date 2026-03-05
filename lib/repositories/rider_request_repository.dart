@@ -29,6 +29,10 @@ class RiderRequestRepository {
   CollectionReference<Map<String, dynamic>> get _users =>
       _db.collection('users');
 
+  // ✅ NEW: offers collection (matches DriverOfferRepository)
+  CollectionReference<Map<String, dynamic>> get _offers =>
+      _db.collection('driver_offers');
+
   /// statuses considered "active" (cannot create another request)
   static const activeStatuses = [
     'waiting',
@@ -39,6 +43,7 @@ class RiderRequestRepository {
   ];
 
   static const int _minWalletToCreateCents = 1000; // RM10
+  static const Duration _preRideWindow = Duration(minutes: 30);
 
   /// ✅ Convert DateTime -> rideDate + rideTime strings
   Map<String, String> _dateTimeToStrings(DateTime dt) {
@@ -79,8 +84,124 @@ class RiderRequestRepository {
     }
   }
 
-  /// ✅ Normal "create now" (immediate waiting)
-  /// Stores: finalFare + distance + duration INSIDE riderRequests
+  // ---------------------------------------------------------------------------
+  // ✅ NEW: Accept driver offer -> create riderRequests + decrement seats
+  // ---------------------------------------------------------------------------
+  Future<String> acceptOfferAndCreateRequest({
+    required String offerId,
+    required int seatRequested,
+    required double routeDistanceKm,
+    required String routeDurationText,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw ('Not logged in');
+
+    await _ensureNoActiveRequest(user.uid);
+    await _ensureWalletMinToCreate(user.uid);
+
+    if (seatRequested <= 0) throw ('Invalid seatRequested');
+    if (routeDistanceKm <= 0) throw ('Invalid distance');
+    if (routeDurationText.trim().isEmpty) throw ('Invalid duration');
+
+    final offerRef = _offers.doc(offerId);
+    final reqRef = _requests.doc();
+    final requestId = reqRef.id;
+
+    await _db.runTransaction((tx) async {
+      final offerSnap = await tx.get(offerRef);
+      if (!offerSnap.exists) throw ('Offer not found');
+
+      final offer = offerSnap.data()!;
+      final status = (offer['status'] ?? '').toString();
+      final seatsAvailable = (offer['seatsAvailable'] as num?)?.toInt() ?? 0;
+
+      if (status != 'open') throw ('Offer is not open');
+      if (seatsAvailable < seatRequested) throw ('Not enough seats available');
+
+      final rideTs = offer['rideDateTime'];
+      if (rideTs is! Timestamp) throw ('Offer rideDateTime missing');
+
+      final pickupGeo = offer['pickupGeo'];
+      final destinationGeo = offer['destinationGeo'];
+      if (pickupGeo is! GeoPoint || destinationGeo is! GeoPoint) {
+        throw ('Offer pickup/destination Geo missing');
+      }
+
+      final rideDt = rideTs.toDate();
+      final strings = _dateTimeToStrings(rideDt);
+
+      // ✅ Decide scheduled vs waiting based on time window
+      final now = DateTime.now();
+      final isTooEarly = rideDt.isAfter(now.add(_preRideWindow));
+      final requestStatus = isTooEarly ? 'scheduled' : 'waiting';
+
+      // Offer fare is RM double, riderRequests finalFare is cents int
+      final fareRm = (offer['fare'] as num?)?.toDouble() ?? 0.0;
+      if (fareRm <= 0) throw ('Invalid offer fare');
+
+      final finalFareCents = (fareRm * 100).round() * seatRequested;
+
+      tx.set(reqRef, {
+        'requestId': requestId,
+
+        'pickupAddress': (offer['pickup'] ?? '').toString().trim(),
+        'destinationAddress': (offer['destination'] ?? '').toString().trim(),
+        'pickupGeo': pickupGeo,
+        'destinationGeo': destinationGeo,
+
+        'rideDate': strings['rideDate'],
+        'rideTime': strings['rideTime'],
+        'seatRequested': seatRequested,
+
+        // ✅ scheduled if too early, otherwise waiting
+        'status': requestStatus,
+        'activeRideId': null,
+
+        // ✅ ALWAYS store scheduledAt from offer rideDateTime
+        'scheduledAt': Timestamp.fromDate(rideDt),
+
+        'finalFare': finalFareCents,
+        'routeDistanceKm': routeDistanceKm,
+        'routeDurationText': routeDurationText,
+
+        // keep schema consistent
+        'searchRadiusKm': 0.0,
+        'maxRadiusKm': 0.0,
+        'searchStepKm': 0.0,
+        'nextExpandAt': null,
+        'notifiedDriverIds': <String>[],
+
+        // direct match
+        'matchedDriverId': (offer['driverId'] ?? '').toString(),
+        'offerId': offerId,
+
+        // payment placeholders
+        'hold': null,
+        'acceptedAt': null,
+
+        'riderId': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+// ✅ Single-accept offer: once accepted, lock it immediately
+      final newSeats = seatsAvailable - seatRequested;
+
+// You can still store seatsAvailable for record, but status becomes booked no matter what.
+      tx.update(offerRef, {
+        'seatsAvailable': newSeats,
+        'status': 'booked', // ✅ immediately hide from open offers
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+
+    return requestId;
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ Your existing methods unchanged below
+  // ---------------------------------------------------------------------------
+
   Future<String> createRiderRequest({
     required String pickupAddress,
     required String destinationAddress,
@@ -90,7 +211,6 @@ class RiderRequestRepository {
     required String rideTime,
     required int seatRequested,
 
-    // ✅ computed once (Directions + fare calc)
     required int finalFareCents,
     required double routeDistanceKm,
     required String routeDurationText,
@@ -123,12 +243,10 @@ class RiderRequestRepository {
       'activeRideId': null,
       'scheduledAt': null,
 
-      // ✅ store the final fare + real route info here
-      'finalFare': finalFareCents, // cents int
+      'finalFare': finalFareCents,
       'routeDistanceKm': routeDistanceKm,
       'routeDurationText': routeDurationText,
 
-      // ✅ matching settings
       'searchRadiusKm': 2.0,
       'maxRadiusKm': 20.0,
       'searchStepKm': 2.0,
@@ -145,7 +263,6 @@ class RiderRequestRepository {
     return requestId;
   }
 
-  /// ✅ Scheduled request (still requires RM10 min)
   Future<String> createScheduledRiderRequest({
     required String pickupAddress,
     required String destinationAddress,
@@ -154,7 +271,6 @@ class RiderRequestRepository {
     required DateTime scheduledAt,
     required int seatRequested,
 
-    // ✅ computed once
     required int finalFareCents,
     required double routeDistanceKm,
     required String routeDurationText,
@@ -190,7 +306,6 @@ class RiderRequestRepository {
       'activeRideId': null,
       'scheduledAt': Timestamp.fromDate(scheduledAt),
 
-      // ✅ store the final fare + real route info here too
       'finalFare': finalFareCents,
       'routeDistanceKm': routeDistanceKm,
       'routeDurationText': routeDurationText,
@@ -203,17 +318,18 @@ class RiderRequestRepository {
     return requestId;
   }
 
-  /// ✅ Activate scheduled requests when time arrived
   Future<void> activateDueScheduledRequests() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    final now = Timestamp.fromDate(DateTime.now());
+    // ✅ Activate bookings when we are within the pre-ride window
+    final activateBefore = DateTime.now().add(_preRideWindow);
+    final cutoff = Timestamp.fromDate(activateBefore);
 
     final snap = await _requests
         .where('riderId', isEqualTo: user.uid)
         .where('status', isEqualTo: 'scheduled')
-        .where('scheduledAt', isLessThanOrEqualTo: now)
+        .where('scheduledAt', isLessThanOrEqualTo: cutoff)
         .get();
 
     if (snap.docs.isEmpty) return;
@@ -227,7 +343,7 @@ class RiderRequestRepository {
     }
     await batch.commit();
   }
-  /// ✅ Prevent scheduling too close to another scheduled booking
+
   Future<void> _ensureNoScheduledClash(String uid, DateTime scheduledAt) async {
     const buffer = Duration(minutes: 30);
 
@@ -244,10 +360,11 @@ class RiderRequestRepository {
 
     if (clash.docs.isNotEmpty) {
       throw (
-        'You already have a scheduled booking around that time. Please choose a different time.',
+      'You already have a scheduled booking around that time. Please choose a different time.',
       );
     }
   }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamRequest(String requestId) {
     return _requests.doc(requestId).snapshots();
   }
@@ -264,7 +381,7 @@ class RiderRequestRepository {
         .orderBy('scheduledAt', descending: false)
         .snapshots();
   }
-  /// Rider cancels while waiting or scheduled
+
   Future<void> cancelRequest(String requestId) async {
     final user = _auth.currentUser;
     if (user == null) throw ('Not logged in');

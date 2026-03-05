@@ -7,6 +7,7 @@ import 'package:tarumt_carpool/screens/Rider/rider_scheduled_bookings_screen.dar
 import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart';
 import 'package:tarumt_carpool/screens/payment/wallet_screen.dart';
 import 'package:tarumt_carpool/services/google_direction_service.dart';
+import 'package:tarumt_carpool/services/route_metrics_service.dart';
 import 'package:tarumt_carpool/utils/geo_utils.dart';
 import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
 import 'package:tarumt_carpool/widgets/seat_request_dialog.dart';
@@ -27,15 +28,15 @@ class RiderHomeContent extends StatefulWidget {
 class _RiderHomeContentState extends State<RiderHomeContent> {
   final RiderRequestRepository _repo = RiderRequestRepository();
   late final GoogleDirectionsService _directions;
+  late final RouteMetricsService _metrics;
 
-  // ✅ filter state
   RideOfferFilter _filter = const RideOfferFilter();
 
   bool _busy = false;
 
   // pricing
   static const double _baseFare = 2.00;
-  static const double _ratePerKm = 0.80; // you can change to 2.00 if you want
+  static const double _ratePerKm = 0.80;
   static const double _minFare = 3.00;
   static const double _maxFare = 50.00;
 
@@ -43,7 +44,7 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     final raw = _baseFare + (_ratePerKm * km);
     final withMin = raw < _minFare ? _minFare : raw;
     final capped = withMin > _maxFare ? _maxFare : withMin;
-    return (capped * 100).round(); // cents int
+    return (capped * 100).round();
   }
 
   @override
@@ -51,8 +52,8 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     super.initState();
 
     _directions = GoogleDirectionsService('AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA');
+    _metrics = RouteMetricsService(_directions);
 
-    // ✅ keep scheduled activation
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _repo.activateDueScheduledRequests();
     });
@@ -75,12 +76,12 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
       ),
     );
   }
+
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ---------- helpers ----------
   bool _validateKLOnly(BuildContext context, Map pickup, Map dropoff) {
     const klCenterLat = 3.2149;
     const klCenterLng = 101.7291;
@@ -119,7 +120,8 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
   }
 
-  Future<Map<String, dynamic>?> _pickDropoff(BuildContext context, LatLng initialTarget) async {
+  Future<Map<String, dynamic>?> _pickDropoff(
+      BuildContext context, LatLng initialTarget) async {
     return await Navigator.push(
       context,
       MaterialPageRoute(
@@ -131,18 +133,6 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
   }
 
-  Future<RouteResult> _computeRouteOrThrow({
-    required LatLng origin,
-    required LatLng destination,
-  }) async {
-    try {
-      return await _directions.getRoute(origin: origin, destination: destination);
-    } catch (e) {
-      throw Exception('Failed to compute route. Please try again. ($e)');
-    }
-  }
-
-  // ---------- create request now ----------
   Future<void> _handleCreateRequest(BuildContext context) async {
     if (_busy) return;
 
@@ -175,12 +165,12 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
 
       final destLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
 
-      final route = await _computeRouteOrThrow(
+      final metrics = await _metrics.computeFromLatLng(
         origin: pickupLatLng,
         destination: destLatLng,
       );
 
-      final finalFareCents = _calcFareCents(route.distanceKm);
+      final finalFareCents = _calcFareCents(metrics.distanceKm);
 
       final requestId = await _repo.createRiderRequest(
         pickupAddress: pickupAddress,
@@ -196,11 +186,9 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
           (dropoff["lat"] as num).toDouble(),
           (dropoff["lng"] as num).toDouble(),
         ),
-
-        // ✅ store computed once
         finalFareCents: finalFareCents,
-        routeDistanceKm: route.distanceKm,
-        routeDurationText: route.durationText,
+        routeDistanceKm: metrics.distanceKm,
+        routeDurationText: metrics.durationText,
       );
 
       if (!mounted) return;
@@ -211,13 +199,12 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
         MaterialPageRoute(builder: (_) => RiderWaitingMapScreen(requestId: requestId)),
       );
     } catch (e) {
-      _snack(e.toString());
+      _snack('Failed to compute route. Please try again. ($e)');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  // ---------- schedule booking ----------
   Future<void> _handleScheduleRequest(BuildContext context) async {
     if (_busy) return;
 
@@ -255,7 +242,8 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     );
     if (time == null) return;
 
-    final scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final scheduledAt =
+    DateTime(date.year, date.month, date.day, time.hour, time.minute);
 
     if (scheduledAt.isBefore(DateTime.now().add(const Duration(minutes: 5)))) {
       _snack('Please choose a time at least 5 minutes later.');
@@ -266,12 +254,12 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
     try {
       final destLatLng = LatLng(dropoff["lat"], dropoff["lng"]);
 
-      final route = await _computeRouteOrThrow(
+      final metrics = await _metrics.computeFromLatLng(
         origin: pickupLatLng,
         destination: destLatLng,
       );
 
-      final finalFareCents = _calcFareCents(route.distanceKm);
+      final finalFareCents = _calcFareCents(metrics.distanceKm);
 
       final requestId = await _repo.createScheduledRiderRequest(
         pickupAddress: pickupAddress,
@@ -286,22 +274,19 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
           (dropoff["lat"] as num).toDouble(),
           (dropoff["lng"] as num).toDouble(),
         ),
-
-        // ✅ store computed once
         finalFareCents: finalFareCents,
-        routeDistanceKm: route.distanceKm,
-        routeDurationText: route.durationText,
+        routeDistanceKm: metrics.distanceKm,
+        routeDurationText: metrics.durationText,
       );
 
       _snack('Scheduled booking created ($requestId)');
     } catch (e) {
-      _snack(e.toString());
+      _snack('Failed to compute route. Please try again. ($e)');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  // ---------- filter ----------
   Future<void> _openFilterDialog() async {
     final result = await showModalBottomSheet<RideOfferFilter>(
       context: context,
@@ -324,8 +309,6 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
                 onWalletTap: () => _openWallet(context),
                 onFilterTap: _openFilterDialog,
                 onScheduleTap: () => _handleScheduleRequest(context),
-
-                // ✅ NEW
                 onMyScheduledTap: () => _openMyScheduled(context),
               ),
               const SizedBox(height: 12),
@@ -364,15 +347,11 @@ class _RiderHomeContentState extends State<RiderHomeContent> {
             ),
           ),
         ),
-
-        // ✅ simple loading overlay
         if (_busy)
           Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.15),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
           ),
       ],
