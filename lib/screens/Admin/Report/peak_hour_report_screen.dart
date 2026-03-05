@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/widgets/report_ui.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 enum ReportRange { today, last7, last30 }
 
@@ -156,10 +157,11 @@ class _PeakHourCreatedCompletedReportScreenState
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
             ),
             const SizedBox(height: 10),
-            ...items.map((w) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: w,
-            )),
+            ...items.map((w) =>
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: w,
+                )),
           ],
         ),
       ),
@@ -239,7 +241,8 @@ class _PeakHourCreatedCompletedReportScreenState
                             if (h % 3 != 0) return const SizedBox.shrink();
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
-                              child: Text('$h', style: const TextStyle(fontSize: 10)),
+                              child: Text(
+                                  '$h', style: const TextStyle(fontSize: 10)),
                             );
                           },
                         ),
@@ -301,7 +304,8 @@ class _PeakHourCreatedCompletedReportScreenState
         // ✅ legend card
         _legendCard(
           items: [
-            _buildLegend(color: color, label: isCreatedChart ? 'Created rides' : 'Completed rides'),
+            _buildLegend(color: color,
+                label: isCreatedChart ? 'Created rides' : 'Completed rides'),
           ],
         ),
 
@@ -312,30 +316,36 @@ class _PeakHourCreatedCompletedReportScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Peak Hour Report'),
-        actions: [
-          DropdownButtonHideUnderline(
-            child: DropdownButton<ReportRange>(
-              value: _range,
-              items: ReportRange.values
-                  .map((r) => DropdownMenuItem(
+    return AppScaffold(
+      title: 'Peak Hour Report',
+      actions: [
+        DropdownButtonHideUnderline(
+          child: DropdownButton<ReportRange>(
+            value: _range,
+            dropdownColor: Colors.white,
+            style: const TextStyle(color: Colors.white),
+            // text on blue appbar
+            iconEnabledColor: Colors.white,
+            // dropdown arrow white
+            items: ReportRange.values.map((r) {
+              return DropdownMenuItem(
                 value: r,
-                child: Text(_rangeLabel(r)),
-              ))
-                  .toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _range = v);
-                _reload(); // ✅ reload when range changed
-              },
-            ),
+                child: Text(
+                  _rangeLabel(r),
+                  style: const TextStyle(color: Colors.black), // menu text
+                ),
+              );
+            }).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _range = v);
+              _reload();
+            },
           ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: FutureBuilder<({List<int> created, List<int> completed})>(
+        ),
+        const SizedBox(width: 12),
+      ],
+      child: FutureBuilder<({List<int> created, List<int> completed})>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -408,7 +418,6 @@ class _PeakHourCreatedCompletedReportScreenState
     );
   }
 }
-
 class _KpiCard extends StatelessWidget {
   final String title;
   final String value;
