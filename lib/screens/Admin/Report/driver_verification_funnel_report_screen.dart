@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -211,9 +212,9 @@ class _DriverVerificationFunnelReportScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Driver Verification Funnel')),
-      body: FutureBuilder<_DvFunnelResult>(
+    return AppScaffold(
+        title: 'Driver Verification Funnel',
+        child: FutureBuilder<_DvFunnelResult>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {

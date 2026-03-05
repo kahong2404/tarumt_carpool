@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/widgets/report_ui.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 enum ReportRange { today, last7, last30 }
 
@@ -278,37 +279,42 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final yAxisTitle = _yAxisTitle(_range);
     final xAxisTitle = _bottomAxisTitle(_range);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Users Overview Report'),
-        actions: [
-          DropdownButtonHideUnderline(
-            child: DropdownButton<ReportRange>(
-              value: _range,
-              items: ReportRange.values
-                  .map((r) => DropdownMenuItem(
+    return AppScaffold(
+      title: 'Users Overview Report',
+      actions: [
+        DropdownButtonHideUnderline(
+          child: DropdownButton<ReportRange>(
+            value: _range,
+            dropdownColor: Colors.white,           // menu background
+            style: const TextStyle(color: Colors.white), // text on AppBar
+            iconEnabledColor: Colors.white,        // dropdown arrow on AppBar
+            items: ReportRange.values
+                .map(
+                  (r) => DropdownMenuItem(
                 value: r,
-                child: Text(_rangeLabel(r)),
-              ))
-                  .toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() {
-                  _range = v;
-                });
-                _reload(); // ✅ reload data ONLY when range changes
-              },
-            ),
+
+                child: Text(_rangeLabel(r),
+                    style: const TextStyle(color: Colors.black),), // dropdown item text
+
+                  ),
+            )
+                .toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _range = v);
+              _reload();
+            },
           ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: FutureBuilder<_UsersOverviewResult>(
-        future: _future, // ✅ cached future
+        ),
+        const SizedBox(width: 12),
+      ],
+      child: FutureBuilder<_UsersOverviewResult>(
+        future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -377,7 +383,6 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // ✅ Chart + custom tooltip overlay
                 ReportChartBox(
                   chart: LayoutBuilder(
                     builder: (context, box) {
@@ -388,8 +393,10 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                             BarChartData(
                               minY: 0,
                               maxY: yMax.toDouble(),
-                              borderData:
-                              FlBorderData(show: true, border: ReportUI.chartBorder),
+                              borderData: FlBorderData(
+                                show: true,
+                                border: ReportUI.chartBorder,
+                              ),
                               gridData: ReportUI.grid(),
                               extraLinesData: ReportUI.baseline0(),
                               barGroups: List.generate(res.points.length, (i) {
@@ -414,9 +421,11 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                               }),
                               titlesData: FlTitlesData(
                                 topTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
                                 rightTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),
                                 leftTitles: ReportUI.leftAxis(
                                   title: yAxisTitle,
                                   interval: interval,
@@ -433,8 +442,10 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                                     if (res.isWeekly) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text('Week ${i + 1}',
-                                            style: const TextStyle(fontSize: 10)),
+                                        child: Text(
+                                          'Week ${i + 1}',
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
                                       );
                                     }
 
@@ -443,21 +454,23 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                                     if (res.isThreeHourly) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text('${d.hour}',
-                                            style: const TextStyle(fontSize: 10)),
+                                        child: Text(
+                                          '${d.hour}',
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
                                       );
                                     }
 
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 6),
-                                      child: Text(_formatMd(d),
-                                          style: const TextStyle(fontSize: 10)),
+                                      child: Text(
+                                        _formatMd(d),
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
                                     );
                                   },
                                 ),
                               ),
-
-                              // ✅ Custom overlay tooltip (no rebuild reload)
                               barTouchData: BarTouchData(
                                 enabled: true,
                                 handleBuiltInTouches: false,
@@ -470,7 +483,6 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                                     });
                                     return;
                                   }
-
                                   if (event is! FlTapUpEvent) return;
 
                                   final spot = rsp.spot!;
@@ -483,7 +495,6 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
                               ),
                             ),
                           ),
-
                           if (_touchedGroupIndex >= 0 &&
                               _touchedRodIndex >= 0 &&
                               _tooltipPos != null)
@@ -502,7 +513,6 @@ class _UsersOverviewReportScreenState extends State<UsersOverviewReportScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ Legend card (like Roles legend)
                 Center(
                   child: SizedBox(
                     width: 220,

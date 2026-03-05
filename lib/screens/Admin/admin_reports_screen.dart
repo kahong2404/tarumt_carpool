@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 import 'Report/users_overview_report_screen.dart';
 import 'package:tarumt_carpool/screens/Admin/Report/completion_report_screen.dart';
 import 'package:tarumt_carpool/screens/Admin/Report/users_role_distribution_report_screen.dart';
@@ -51,51 +51,30 @@ class AdminReportsScreen extends StatelessWidget {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Reports',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Analytics for admin decision making',
-                style: TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 16),
-
-              Expanded(
-                child: GridView.builder(
-                  itemCount: reports.length,
-                  gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    mainAxisExtent: 160,
-                  ),
-                  itemBuilder: (context, i) {
-                    final r = reports[i];
-                    return _ReportCard(
-                      title: r.title,
-                      icon: r.icon,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: r.screenBuilder),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+    return AppScaffold(
+      title: 'Reports',
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: GridView.builder(
+          itemCount: reports.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: 160,
           ),
+          itemBuilder: (context, i) {
+            final r = reports[i];
+            return _ReportCard(
+              title: r.title,
+              icon: r.icon,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: r.screenBuilder),
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -138,25 +117,22 @@ class _ReportCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ✅ Centered Icon Box
               Container(
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.blue.withOpacity(0.1), // light blue background
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
                   child: Icon(
                     icon,
                     size: 28,
+                    color: Colors.blue, // blue icon
                   ),
                 ),
               ),
-
               const SizedBox(height: 14),
-
-              // ✅ Centered Title
               Text(
                 title,
                 textAlign: TextAlign.center,

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -192,9 +193,9 @@ class _RatingDistributionReportScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ratings Distribution')),
-      body: FutureBuilder<_RatingDistResult>(
+    return AppScaffold(
+      title: 'Ratings Distribution',
+      child: FutureBuilder<_RatingDistResult>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {

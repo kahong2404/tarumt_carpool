@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -171,9 +172,9 @@ class _UsersRoleDistributionReportScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Users Role Distribution')),
-      body: FutureBuilder<_RoleDistResult>(
+    return AppScaffold(
+      title: 'Users Role Distribution Report',
+      child: FutureBuilder<_RoleDistResult>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -197,12 +198,11 @@ class _UsersRoleDistributionReportScreenState
                 const ReportInfoBox(
                   title: 'What this report means',
                   body:
-                  'This report shows the distribution of user roles: Rider only, Driver only, and Dual role (both). Use it to analyze platform balance, user engagement, and support strategic decision-making. '
-                      ,
+                  'This report shows the distribution of user roles: Rider only, Driver only, and Dual role (both). '
+                      'Use it to analyze platform balance, user engagement, and support strategic decision-making.',
                 ),
                 const SizedBox(height: ReportUI.gapM),
 
-                // ✅ KPI: 2 columns / row
                 Row(
                   children: [
                     Expanded(
@@ -248,7 +248,6 @@ class _UsersRoleDistributionReportScreenState
                   'User Role Distribution',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 10),
 
                 ReportChartBox(
@@ -261,8 +260,7 @@ class _UsersRoleDistributionReportScreenState
 
                         final pie = LayoutBuilder(
                           builder: (context, pieBox) {
-                            final pieSize =
-                            Size(pieBox.maxWidth, pieBox.maxHeight);
+                            final pieSize = Size(pieBox.maxWidth, pieBox.maxHeight);
 
                             return Stack(
                               clipBehavior: Clip.none,
@@ -286,8 +284,8 @@ class _UsersRoleDistributionReportScreenState
 
                                         if (event is! FlTapUpEvent) return;
 
-                                        final idx = rsp.touchedSection!
-                                            .touchedSectionIndex;
+                                        final idx = rsp
+                                            .touchedSection!.touchedSectionIndex;
 
                                         setState(() {
                                           _touchedIndex = idx;
@@ -328,15 +326,17 @@ class _UsersRoleDistributionReportScreenState
                           },
                         );
 
-                        // ✅ Legend: shrink-to-fit + centered (no big empty right space)
                         final legend = Center(
                           child: SizedBox(
-                            width: 200, // 👈 adjust this (300–360 looks nice)
+                            width: 200,
                             child: _Legend(
-                              items: [
-                                _LegendItem(color: riderOnlyColor, label: 'Rider only'),
-                                _LegendItem(color: driverOnlyColor, label: 'Driver only'),
-                                _LegendItem(color: dualRoleColor, label: 'Dual role'),
+                              items: const [
+                                _LegendItem(
+                                    color: riderOnlyColor, label: 'Rider only'),
+                                _LegendItem(
+                                    color: driverOnlyColor, label: 'Driver only'),
+                                _LegendItem(
+                                    color: dualRoleColor, label: 'Dual role'),
                               ],
                             ),
                           ),
@@ -357,12 +357,7 @@ class _UsersRoleDistributionReportScreenState
                           children: [
                             Expanded(child: pie),
                             const SizedBox(width: 12),
-                            // instead of fixed 160 width that creates empty space,
-                            // we let legend take only what it needs:
-                            SizedBox(
-                              width: 220,
-                              child: legend,
-                            ),
+                            SizedBox(width: 220, child: legend),
                           ],
                         );
                       },

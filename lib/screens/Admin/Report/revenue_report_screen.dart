@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/widgets/report_ui.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 enum ReportRange { today, last7, last30 }
 
 class RevenueReportScreen extends StatefulWidget {
@@ -269,30 +269,34 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
     final yAxisTitle = _yAxisTitle(_range);
     final xAxisTitle = _bottomAxisTitle(_range);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Revenue Report'),
-        actions: [
-          DropdownButtonHideUnderline(
-            child: DropdownButton<ReportRange>(
-              value: _range,
-              items: ReportRange.values
-                  .map((r) => DropdownMenuItem(
+    return AppScaffold(
+      title: 'Revenue Report',
+      actions: [
+        DropdownButtonHideUnderline(
+          child: DropdownButton<ReportRange>(
+            value: _range,
+            dropdownColor: Colors.white,
+            style: const TextStyle(color: Colors.white), // on blue appbar
+            iconEnabledColor: Colors.white,
+            items: ReportRange.values.map((r) {
+              return DropdownMenuItem(
                 value: r,
-                child: Text(_rangeLabel(r)),
-              ))
-                  .toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _range = v);
-                _reload(); // ✅ reload only when filter changes
-              },
-            ),
+                child: Text(
+                  _rangeLabel(r),
+                  style: const TextStyle(color: Colors.black), // menu text
+                ),
+              );
+            }).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _range = v);
+              _reload();
+            },
           ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: FutureBuilder<_RevenueRangeResult>(
+        ),
+        const SizedBox(width: 12),
+      ],
+      child: FutureBuilder<_RevenueRangeResult>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -362,7 +366,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // ✅ Chart + floating tooltip overlay
                 ReportChartBox(
                   chart: LayoutBuilder(
                     builder: (context, box) {
@@ -379,7 +382,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                               ),
                               gridData: ReportUI.grid(),
                               extraLinesData: ReportUI.baseline0(),
-
                               barGroups: List.generate(res.values.length, (i) {
                                 return BarChartGroupData(
                                   x: i,
@@ -393,7 +395,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                                   ],
                                 );
                               }),
-
                               titlesData: FlTitlesData(
                                 topTitles: const AxisTitles(
                                     sideTitles: SideTitles(showTitles: false)),
@@ -416,37 +417,28 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                                     if (res.isWeekly) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          'Week ${i + 1}',
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
+                                        child: Text('Week ${i + 1}',
+                                            style: const TextStyle(fontSize: 10)),
                                       );
                                     }
 
                                     final d = res.points[i];
                                     if (res.isThreeHourly) {
-                                      // show 0,3,6...
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          '${d.hour}',
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
+                                        child: Text('${d.hour}',
+                                            style: const TextStyle(fontSize: 10)),
                                       );
                                     }
 
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        _formatMd(d),
-                                        style: const TextStyle(fontSize: 10),
-                                      ),
+                                      child: Text(_formatMd(d),
+                                          style: const TextStyle(fontSize: 10)),
                                     );
                                   },
                                 ),
                               ),
-
-                              // ✅ custom overlay tooltip (NO Firestore reload)
                               barTouchData: BarTouchData(
                                 enabled: true,
                                 handleBuiltInTouches: false,
@@ -469,7 +461,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                               ),
                             ),
                           ),
-
                           if (_touchedIndex >= 0 && _tooltipPos != null)
                             Positioned(
                               left: (_tooltipPos!.dx - 95)
@@ -485,8 +476,6 @@ class _RevenueReportScreenState extends State<RevenueReportScreen> {
                 ),
 
                 const SizedBox(height: 10),
-
-                // ✅ Legend card
                 Center(
                   child: SizedBox(
                     width: 220,

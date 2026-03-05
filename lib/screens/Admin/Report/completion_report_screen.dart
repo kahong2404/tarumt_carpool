@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:tarumt_carpool/widgets/report_ui.dart';
-
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 enum ReportRange { today, last7, last30 }
 
 class CompletionReportScreen extends StatefulWidget {
@@ -112,50 +112,54 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
     return 100;
   }
 
-  String _label(int x) => switch (x) {
-    0 => 'Created',
-    1 => 'Completed',
-    2 => 'Cancelled',
-    _ => 'Unknown',
-  };
+  String _label(int x) =>
+      switch (x) {
+        0 => 'Created',
+        1 => 'Completed',
+        2 => 'Cancelled',
+        _ => 'Unknown',
+      };
 
-  Color _color(int x) => switch (x) {
-    0 => createdColor,
-    1 => completedColor,
-    2 => cancelledColor,
-    _ => Colors.grey,
-  };
+  Color _color(int x) =>
+      switch (x) {
+        0 => createdColor,
+        1 => completedColor,
+        2 => cancelledColor,
+        _ => Colors.grey,
+      };
 
   @override
   Widget build(BuildContext context) {
     final titleText = _chartTitle(_range);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Completion Report'),
-        actions: [
-          DropdownButtonHideUnderline(
-            child: DropdownButton<ReportRange>(
-              value: _range,
-              items: ReportRange.values
-                  .map(
-                    (r) => DropdownMenuItem(
-                  value: r,
-                  child: Text(_rangeLabel(r)),
+    return AppScaffold(
+      title: 'Completion Report',
+      actions: [
+        DropdownButtonHideUnderline(
+          child: DropdownButton<ReportRange>(
+            value: _range,
+            dropdownColor: Colors.white,
+            style: const TextStyle(color: Colors.white), // on blue appbar
+            iconEnabledColor: Colors.white,             // dropdown arrow
+            items: ReportRange.values.map((r) {
+              return DropdownMenuItem(
+                value: r,
+                child: Text(
+                  _rangeLabel(r),
+                  style: const TextStyle(color: Colors.black), // menu text
                 ),
-              )
-                  .toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _range = v);
-                _reload(); // ✅ refetch for the new range
-              },
-            ),
+              );
+            }).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _range = v);
+              _reload();
+            },
           ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: FutureBuilder<Map<String, int>>(
+        ),
+        const SizedBox(width: 12),
+      ],
+      child: FutureBuilder<Map<String, int>>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -163,8 +167,8 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
           }
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
 
-          final data =
-              snap.data ?? {'created': 0, 'completed': 0, 'cancelled': 0};
+          final data = snap.data ??
+              {'created': 0, 'completed': 0, 'cancelled': 0};
 
           final created = data['created']!;
           final completed = data['completed']!;
@@ -185,7 +189,8 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                 ReportInfoBox(
                   title: 'What this report means',
                   body:
-                  'Shows how reliable the service is for ${_rangeLabel(_range).toLowerCase()}. '
+                  'Shows how reliable the service is for ${_rangeLabel(_range)
+                      .toLowerCase()}. '
                       'A high completion rate means rides usually finish successfully. '
                       'A high cancellation rate means users are dropping off and matching/policies may need improvement.',
                 ),
@@ -197,8 +202,7 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                       child: _RateCard(
                         title: 'Completion Rate',
                         value: '${completionRate.toStringAsFixed(1)}%',
-                        subtitle:
-                        '$completed rides (completed) / $created rides (created)',
+                        subtitle: '$completed rides (completed) / $created rides (created)',
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -206,8 +210,7 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                       child: _RateCard(
                         title: 'Cancellation Rate',
                         value: '${cancelRate.toStringAsFixed(1)}%',
-                        subtitle:
-                        '$cancelled rides (cancelled) / $created rides (created)',
+                        subtitle: '$cancelled rides (cancelled) / $created rides (created)',
                       ),
                     ),
                   ],
@@ -215,14 +218,13 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
 
                 const SizedBox(height: ReportUI.gapXL),
 
-                // ✅ NEW: Title like Revenue report (changes by filter)
                 Text(
                   titleText,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
 
-                // ✅ Chart with floating tooltip (no Firestore reload on tap)
                 ReportChartBox(
                   chart: LayoutBuilder(
                     builder: (context, box) {
@@ -268,9 +270,8 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                                   interval: 1,
                                   getTitle: (value, meta) {
                                     final x = value.toInt();
-                                    if (x < 0 || x > 2) {
+                                    if (x < 0 || x > 2)
                                       return const SizedBox.shrink();
-                                    }
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 6),
                                       child: Text(_label(x)),
@@ -278,8 +279,6 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                                   },
                                 ),
                               ),
-
-                              // ✅ custom tooltip
                               barTouchData: BarTouchData(
                                 enabled: true,
                                 handleBuiltInTouches: false,
@@ -304,10 +303,10 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                           ),
                           if (_touchedIndex >= 0 && _tooltipPos != null)
                             Positioned(
-                              left: (_tooltipPos!.dx - 95)
-                                  .clamp(8.0, box.maxWidth - 190),
-                              top: (_tooltipPos!.dy - 80)
-                                  .clamp(8.0, box.maxHeight - 90),
+                              left: (_tooltipPos!.dx - 95).clamp(
+                                  8.0, box.maxWidth - 190),
+                              top: (_tooltipPos!.dy - 80).clamp(
+                                  8.0, box.maxHeight - 90),
                               child: ReportFloatingTooltip(
                                 title: _label(_touchedIndex),
                                 line2: 'Rides: ${values[_touchedIndex]}',
@@ -322,7 +321,6 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ legend card
                 Center(
                   child: SizedBox(
                     width: 220,
@@ -330,8 +328,10 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
                       title: 'Ride Status',
                       items: const [
                         ReportLegendItem(color: createdColor, label: 'Created'),
-                        ReportLegendItem(color: completedColor, label: 'Completed'),
-                        ReportLegendItem(color: cancelledColor, label: 'Cancelled'),
+                        ReportLegendItem(
+                            color: completedColor, label: 'Completed'),
+                        ReportLegendItem(
+                            color: cancelledColor, label: 'Cancelled'),
                       ],
                     ),
                   ),
@@ -344,7 +344,6 @@ class _CompletionReportScreenState extends State<CompletionReportScreen> {
     );
   }
 }
-
 class _RateCard extends StatelessWidget {
   final String title;
   final String value;
