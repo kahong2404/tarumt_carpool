@@ -350,7 +350,7 @@ class _PostRidesState extends State<PostRides> {
               controller: _fareCtrl,
               readOnly: true,
               decoration: _dec(
-                'Ride Fare (Auto)',
+                'Ride Fare per Person (Auto)',
                 Icons.attach_money_outlined,
                 hint: 'Select pickup & destination',
               ),
