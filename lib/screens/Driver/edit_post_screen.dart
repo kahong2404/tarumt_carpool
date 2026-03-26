@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:tarumt_carpool/models/driver_offer.dart';
 import 'package:tarumt_carpool/repositories/driver_offer_repository.dart';
+import 'package:tarumt_carpool/services/google_direction_service.dart';
+import 'package:tarumt_carpool/widgets/LocationSearch/location_select_screen.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class EditPostScreenRides extends StatefulWidget {
-  final String offerId; // ✅ required to edit the correct post
+  final String offerId;
 
   const EditPostScreenRides({
     super.key,
@@ -22,14 +28,32 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
   final _seatsCtrl = TextEditingController();
   final _fareCtrl = TextEditingController();
 
+  static const _googleApiKey = 'AIzaSyDcyTxJYf48_3WSEYGWb9sF03NiWvTqTMA';
+  late final _dir = GoogleDirectionsService(_googleApiKey);
+  bool _calculating = false;
+
   final DriverOfferRepository _repo = DriverOfferRepository();
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
+  LatLng? _pickupLatLng;
+  LatLng? _destLatLng;
+
+  double? _distanceKm;
+  double? _computedFare;
+
   DriverOffer? _offer;
-  bool _loading = true; // loading existing data
-  bool _saving = false; // saving update
+  bool _loading = true;
+  bool _saving = false;
+
+  // =========================
+  // Pricing config — must match PostRides
+  // =========================
+  static const double _baseFare = 2.00;
+  static const double _ratePerKm = 0.80;
+  static const double _minFare = 3.00;
+  static const double _maxFare = 50.00;
 
   @override
   void initState() {
@@ -63,15 +87,50 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  String _fmtDate(DateTime d) => "${d.day}/${d.month}/${d.year}";
+  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
   String _fmtTime(TimeOfDay t) =>
-      "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}";
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  double _calcFare(double km) {
+    final raw = _baseFare + (_ratePerKm * km);
+    final withMin = raw < _minFare ? _minFare : raw;
+    final capped = withMin > _maxFare ? _maxFare : withMin;
+    return double.parse(capped.toStringAsFixed(2));
+  }
+
+  Future<void> _recalcFareIfPossible() async {
+    if (_pickupLatLng == null || _destLatLng == null) return;
+    if (_calculating) return;
+
+    setState(() => _calculating = true);
+
+    try {
+      final km = await _dir.getDrivingDistanceKm(
+        origin: _pickupLatLng!,
+        destination: _destLatLng!,
+      );
+
+      final fare = _calcFare(km);
+
+      if (!mounted) return;
+      setState(() {
+        _distanceKm = km;
+        _computedFare = fare;
+        _fareCtrl.text = 'RM ${fare.toStringAsFixed(2)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Distance calculation failed');
+    } finally {
+      if (mounted) setState(() => _calculating = false);
+    }
+  }
 
   Future<void> _loadOffer() async {
     try {
       final offer = await _repo.getById(widget.offerId);
       if (offer == null) {
-        _snack("Offer not found");
+        _snack('Offer not found');
         if (mounted) Navigator.pop(context);
         return;
       }
@@ -81,7 +140,20 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
       _pickupCtrl.text = offer.pickup;
       _destinationCtrl.text = offer.destination;
       _seatsCtrl.text = offer.seatsAvailable.toString();
-      _fareCtrl.text = offer.fare.toStringAsFixed(2);
+
+      // ✅ pre-fill existing fare
+      _computedFare = offer.fare;
+      _fareCtrl.text = 'RM ${offer.fare.toStringAsFixed(2)}';
+
+      // ✅ pre-fill existing geo so recalc works immediately
+      _pickupLatLng = LatLng(
+        offer.pickupGeo.latitude,
+        offer.pickupGeo.longitude,
+      );
+      _destLatLng = LatLng(
+        offer.destinationGeo.latitude,
+        offer.destinationGeo.longitude,
+      );
 
       _selectedDate = DateTime(
         offer.rideDateTime.year,
@@ -99,8 +171,73 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
       if (mounted) setState(() => _loading = false);
     } catch (e) {
       if (mounted) setState(() => _loading = false);
-      _snack("Failed to load offer: $e");
+      _snack('Failed to load offer: $e');
     }
+  }
+
+  // =========================
+  // Select Pickup (map)
+  // =========================
+  Future<void> _selectStartPoint() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationSelectScreen(
+          mode: LocationSelectMode.pickup,
+          initialTarget: _pickupLatLng ?? const LatLng(3.2149, 101.7291),
+          autoMoveToMyLocation: false,
+          customMarkerTitle: 'Start',
+          customButtonText: 'Set Starting Point',
+          customResultKey: 'start',
+          customCurrentLocationSnippet: 'My current location',
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _pickupLatLng = LatLng(
+        (result['lat'] as num).toDouble(),
+        (result['lng'] as num).toDouble(),
+      );
+      final address = (result['address'] ?? '').toString().trim();
+      _pickupCtrl.text = address.isEmpty ? 'Selected location' : address;
+    });
+
+    _recalcFareIfPossible();
+  }
+
+  // =========================
+  // Select Destination (map)
+  // =========================
+  Future<void> _selectDestination() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationSelectScreen(
+          mode: LocationSelectMode.dropoff,
+          initialTarget: _destLatLng ?? _pickupLatLng ?? const LatLng(3.2149, 101.7291),
+          autoMoveToMyLocation: false,
+          customMarkerTitle: 'Destination',
+          customButtonText: 'Set Destination',
+          customResultKey: 'destination',
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _destLatLng = LatLng(
+        (result['lat'] as num).toDouble(),
+        (result['lng'] as num).toDouble(),
+      );
+      final address = (result['address'] ?? '').toString().trim();
+      _destinationCtrl.text = address.isEmpty ? 'Selected location' : address;
+    });
+
+    _recalcFareIfPossible();
   }
 
   Future<void> _saveChanges() async {
@@ -109,17 +246,23 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
     final pickup = _pickupCtrl.text.trim();
     final dest = _destinationCtrl.text.trim();
 
-    if (pickup.isEmpty) return _snack("Please enter pickup location.");
-    if (dest.isEmpty) return _snack("Please enter destination.");
-    if (_selectedDate == null) return _snack("Please select date.");
-    if (_selectedTime == null) return _snack("Please select time.");
+    if (pickup.isEmpty || _pickupLatLng == null) {
+      return _snack('Please select starting point.');
+    }
+    if (dest.isEmpty || _destLatLng == null) {
+      return _snack('Please select destination.');
+    }
+    if (_selectedDate == null) return _snack('Please select date.');
+    if (_selectedTime == null) return _snack('Please select time.');
 
     final seats = int.tryParse(_seatsCtrl.text.trim());
-    if (seats == null || seats <= 0) return _snack("Seats must be a number > 0.");
+    if (seats == null || seats <= 0) {
+      return _snack('Seats must be a number > 0.');
+    }
 
-    final fareText = _fareCtrl.text.trim().replaceAll(RegExp(r'[^0-9.]'), '');
-    final fare = double.tryParse(fareText);
-    if (fare == null || fare < 0) return _snack("Fare must be valid (e.g. 5.00).");
+    if (_computedFare == null) {
+      return _snack('Please select pickup & destination to calculate fare.');
+    }
 
     final dt = DateTime(
       _selectedDate!.year,
@@ -129,25 +272,30 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
       _selectedTime!.minute,
     );
 
+    if (dt.isBefore(DateTime.now())) {
+      return _snack('Selected date/time is in the past.');
+    }
+
     setState(() => _saving = true);
 
     try {
       final updated = _offer!.copyWith(
         pickup: pickup,
         destination: dest,
+        pickupGeo: GeoPoint(_pickupLatLng!.latitude, _pickupLatLng!.longitude),
+        destinationGeo: GeoPoint(_destLatLng!.latitude, _destLatLng!.longitude),
         rideDateTime: dt,
         seatsAvailable: seats,
-        fare: fare,
-        // keep status unchanged
+        fare: _computedFare!,
       );
 
       await _repo.update(updated);
 
-      _snack("Updated successfully!");
+      _snack('Updated successfully!');
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
-      _snack("Update failed: $e");
+      _snack('Update failed: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -163,13 +311,9 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: const Text('Edit Post', style: TextStyle(color: Colors.white),),
-        backgroundColor: blue,
-      ),
-      body: SingleChildScrollView(
+    return AppScaffold(
+      title: 'Edit Post',
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,26 +329,33 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
             ),
             const SizedBox(height: 18),
 
+            // ✅ Pickup — tap to select on map
             TextField(
               controller: _pickupCtrl,
+              readOnly: true,
               decoration: _dec(
-                'Pick Up Location',
+                'Starting Point',
                 Icons.location_on_outlined,
-                hint: 'Enter pickup location',
+                hint: 'Tap to select starting point',
               ),
+              onTap: _saving ? null : _selectStartPoint,
             ),
             const SizedBox(height: 12),
 
+            // ✅ Destination — tap to select on map
             TextField(
               controller: _destinationCtrl,
+              readOnly: true,
               decoration: _dec(
                 'Destination',
                 Icons.flag_outlined,
-                hint: 'Enter destination',
+                hint: 'Tap to select destination',
               ),
+              onTap: _saving ? null : _selectDestination,
             ),
             const SizedBox(height: 12),
 
+            // Date + Time
             Row(
               children: [
                 Expanded(
@@ -218,7 +369,8 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
                       final picked = await showDatePicker(
                         context: context,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        lastDate: DateTime.now()
+                            .add(const Duration(days: 365)),
                         initialDate: _selectedDate ?? DateTime.now(),
                       );
                       if (picked != null) {
@@ -254,6 +406,7 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
             ),
             const SizedBox(height: 12),
 
+            // Seats
             TextField(
               controller: _seatsCtrl,
               keyboardType: TextInputType.number,
@@ -261,13 +414,28 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
             ),
             const SizedBox(height: 12),
 
+            // ✅ Fare — read only, auto-calculated
             TextField(
               controller: _fareCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: _dec('Ride Fare', Icons.attach_money_outlined, hint: 'RM 0.00'),
+              readOnly: true,
+              decoration: _dec(
+                'Ride Fare per Person (Auto)',
+                Icons.attach_money_outlined,
+                hint: 'Select pickup & destination',
+              ),
             ),
+
+            if (_distanceKm != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Distance: ${_distanceKm!.toStringAsFixed(1)} km',
+                style: const TextStyle(color: Colors.black54),
+              ),
+            ],
+
             const SizedBox(height: 14),
 
+            // Tip box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -298,7 +466,9 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
               height: 48,
               child: ElevatedButton(
                 onPressed: _saving ? null : _saveChanges,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2B6CFF)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2B6CFF),
+                ),
                 child: _saving
                     ? const SizedBox(
                   height: 20,
@@ -307,7 +477,10 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
                 )
                     : const Text(
                   'Save Changes',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -321,7 +494,8 @@ class _EditPostScreenRidesState extends State<EditPostScreenRides> {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text(
                   'Cancel',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
             ),

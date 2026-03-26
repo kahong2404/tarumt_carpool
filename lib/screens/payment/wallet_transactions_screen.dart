@@ -47,9 +47,9 @@ class WalletTransactionsScreen extends StatelessWidget {
               final d = docs[i];
               final data = d.data();
 
-              final title =
-              (data['title'] ?? data['type'] ?? 'Transaction').toString();
+              final title = (data['title'] ?? data['type'] ?? 'Transaction').toString();
               final amountCents = (data['amountCents'] ?? 0) as int;
+              final type = (data['type'] ?? '').toString();
 
               final ts = data['createdAt'];
               final createdAt = ts is Timestamp ? ts.toDate() : null;
@@ -58,9 +58,12 @@ class WalletTransactionsScreen extends StatelessWidget {
               final dateText =
               createdAt == null ? '-' : _formatTimeThenDate(createdAt);
 
-              final isMinus = amountCents < 0;
+// ✅ payment type = money left rider's wallet, show as minus
+              final isDeduction = amountCents < 0 || type == 'payment' || type == 'withdraw';
+              final displayAmount = amountCents.abs();
+
               final amountText =
-                  '${isMinus ? '-' : '+'} RM ${(amountCents.abs() / 100).toStringAsFixed(2)}';
+                  '${isDeduction ? '-' : '+'} RM ${(displayAmount / 100).toStringAsFixed(2)}';
 
               return ListTile(
                 title: Text(title,
@@ -70,7 +73,7 @@ class WalletTransactionsScreen extends StatelessWidget {
                   amountText,
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: isMinus ? Colors.black87 : Colors.green[700],
+                    color: isDeduction ? Colors.black87 : Colors.green[700],
                   ),
                 ),
                 onTap: () => Navigator.push(

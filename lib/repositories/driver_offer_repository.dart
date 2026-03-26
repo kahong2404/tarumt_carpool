@@ -7,6 +7,10 @@ class DriverOfferRepository {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  static const activeDrivers = [
+    'approved'
+  ];
+
   DriverOfferRepository({
     FirebaseFirestore? db,
     FirebaseAuth? auth,
@@ -22,17 +26,27 @@ class DriverOfferRepository {
     return uid;
   }
 
-  // ------------------------
-  // CREATE
-  // ------------------------
+// ------------------------
+// CREATE
+// ------------------------
   Future<String> create(DriverOffer offer) async {
     final uid = _requireUid();
+
+    // Check driver approval status
+    final userDoc = await _db.collection('users').doc(uid).get();
+    if (!userDoc.exists) {
+      throw ('User profile not found');
+    }
+    final driverStatus = userDoc.data()?['driverStatus'];
+    if (driverStatus != 'approved') {
+      throw ('Your driver account is not approved yet');
+    }
 
     // enforce owner
     final fixed = offer.copyWith(driverId: uid);
 
     final docRef = await _col.add(fixed.toMapForCreate());
-    await docRef.update({'offerId': docRef.id}); // optional
+    await docRef.update({'offerId': docRef.id});
     return docRef.id;
   }
 

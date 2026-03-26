@@ -7,7 +7,6 @@ class RideRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ✅ ONLY ride statuses here (not request)
   static const activeStatuses = [
     'incoming',
     'arrived_pickup',
@@ -26,10 +25,10 @@ class RideRepository {
 
   CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
 
-  // Add near your other collection refs in RideRepository
   CollectionReference<Map<String, dynamic>> get _walletTx => _db.collection('walletTransactions');
+
   // ----------------------------
-  // OOP STREAMS (Recommended)
+  // OOP STREAMS
   // ----------------------------
   Stream<Ride> streamRideModel(String rideId) {
     return _rides.doc(rideId).snapshots().map((doc) => Ride.fromDoc(doc));
@@ -105,22 +104,13 @@ class RideRepository {
   }
 
   // ----------------------------
-  // ACCEPT REQUEST (COPY finalFare + HOLD)
+  // ACCEPT REQUEST
   // ----------------------------
-  /// Flow:
-  /// riderRequests.status: waiting -> incoming
-  /// rides.rideStatus: incoming
-  ///
-  /// ✅ ALSO:
-  /// - copy riderRequests.finalFare -> rides.finalFare
-  /// - "hold" = deduct rider walletBalance immediately
-  /// - store hold info in riderRequests.hold (hidden)
   Future<String> acceptRequest({required String requestId}) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in');
     final currentDriverId = user.uid;
 
-    // ✅ PRE-CHECK: driver can't accept if already has active ride
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: currentDriverId)
         .where('driverStatus', whereIn: activeDrivers)
@@ -129,12 +119,12 @@ class RideRepository {
         .get();
 
     if (activeRideSnap.docs.isNotEmpty) {
-      throw Exception('You already have an active ride or you hav.');
+      throw Exception('You already have an active ride or your account has not been approved.');
     }
 
     return _db.runTransaction<String>((tx) async {
       // --------------------
-      // READS (before writes)
+      // READS
       // --------------------
       final requestRef = _requests.doc(requestId);
       final requestSnap = await tx.get(requestRef);
@@ -164,13 +154,11 @@ class RideRepository {
         throw Exception('Request missing pickup/destination GeoPoint');
       }
 
-      // ✅ finalFare must already exist in riderRequests (cents int)
       final fareCents = (req['finalFare'] as num?)?.toInt();
       if (fareCents == null || fareCents <= 0) {
         throw Exception('Fare not ready yet. Please try again.');
       }
 
-      // ✅ prevent double hold
       final holdMap = (req['hold'] is Map)
           ? Map<String, dynamic>.from(req['hold'] as Map)
           : null;
@@ -179,7 +167,6 @@ class RideRepository {
         throw Exception('This request already has a payment hold.');
       }
 
-      // ✅ read rider wallet
       final riderRef = _users.doc(riderId);
       final riderSnap = await tx.get(riderRef);
       if (!riderSnap.exists) throw Exception('Rider not found');
@@ -197,43 +184,34 @@ class RideRepository {
       final rideRef = _rides.doc();
       final now = FieldValue.serverTimestamp();
 
-      // 1) create ride (✅ copy finalFare)
       tx.set(rideRef, {
         'requestId': requestId,
         'offerId': null,
         'driverID': currentDriverId,
         'riderID': riderId,
-
         'rideStatus': 'incoming',
-
         'pickupAddress': pickupAddress,
         'destinationAddress': destinationAddress,
         'pickupGeo': pickupGeo,
         'destinationGeo': destinationGeo,
-
         'acceptedAt': now,
         'createdAt': now,
         'updatedAt': now,
-
-        // ✅ payment
-        'finalFare': fareCents,     // cents
-        'paymentStatus': 'held',    // held
+        'finalFare': fareCents,
+        'paymentStatus': 'held',
       });
 
-      // 2) deduct rider wallet immediately (hold)
       tx.update(riderRef, {
         'walletBalance': riderWallet - fareCents,
         'updatedAt': now,
       });
 
-      // 3) update request doc (status + hidden hold)
       tx.update(requestRef, {
         'status': 'incoming',
         'matchedDriverId': currentDriverId,
         'activeRideId': rideRef.id,
         'acceptedAt': now,
         'updatedAt': now,
-
         'hold': {
           'status': 'held',
           'amount': fareCents,
@@ -249,10 +227,7 @@ class RideRepository {
 }
 
 // =====================================================
-// STATUS TRANSITIONS (✅ RELEASE ON COMPLETED)
-// =====================================================
-// =====================================================
-// STATUS TRANSITIONS (✅ RELEASE ON COMPLETED + WALLET TX)
+// STATUS TRANSITIONS
 // =====================================================
 extension RideStatusTransitions on RideRepository {
   Future<void> updateRideStatus({
@@ -267,14 +242,13 @@ extension RideStatusTransitions on RideRepository {
 
     await _db.runTransaction((tx) async {
       // --------------------
-      // READS (before writes)
+      // READS
       // --------------------
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
       final ride = rideSnap.data() as Map<String, dynamic>;
 
-      // ✅ Only driver of this ride can update status
       final rideDriverId = (ride['driverID'] ?? '').toString();
       if (rideDriverId != currentDriverId) throw Exception('Not authorized');
 
@@ -285,25 +259,23 @@ extension RideStatusTransitions on RideRepository {
 
       final now = FieldValue.serverTimestamp();
 
-      // Completed extra reads
       DocumentReference<Map<String, dynamic>>? reqRef;
       DocumentSnapshot<Map<String, dynamic>>? reqSnap;
-
       DocumentReference<Map<String, dynamic>>? driverRef;
       DocumentSnapshot<Map<String, dynamic>>? driverSnap;
-
-      // ✅ wallet tx (release)
       DocumentReference<Map<String, dynamic>>? walletTxRef;
       DocumentSnapshot<Map<String, dynamic>>? walletTxSnap;
 
+      // ✅ NEW: rider tx pre-read refs
+      DocumentReference<Map<String, dynamic>>? riderWalletTxRef;
+      DocumentSnapshot<Map<String, dynamic>>? riderWalletTxSnap;
+
       String? requestIdForRef;
       String? riderIdForRef;
-
       int? fareCents;
       Map<String, dynamic>? hold;
 
       if (nextStatus == 'completed') {
-        // ✅ prevent double release
         final currentPay = (ride['paymentStatus'] ?? '').toString();
         if (currentPay == 'released') throw Exception('Payment already released.');
         if (currentPay == 'refunded') throw Exception('Payment already refunded.');
@@ -329,7 +301,6 @@ extension RideStatusTransitions on RideRepository {
           throw Exception('No held payment to release.');
         }
 
-        // fare from ride preferred
         fareCents = (ride['finalFare'] as num?)?.toInt() ??
             (hold?['amount'] as num?)?.toInt();
 
@@ -337,14 +308,17 @@ extension RideStatusTransitions on RideRepository {
           throw Exception('Invalid fare to release.');
         }
 
-        // ✅ credit driver walletBalance
         driverRef = _db.collection('users').doc(rideDriverId);
         driverSnap = await tx.get(driverRef);
         if (!driverSnap.exists) throw Exception('Driver user not found');
 
-        // ✅ prepare wallet tx ref + read once (idempotent)
+        // ✅ Pre-read both wallet tx docs before any writes
         walletTxRef = _walletTx.doc('release_$rideId');
         walletTxSnap = await tx.get(walletTxRef);
+
+        // ✅ NEW: pre-read rider payment tx doc
+        riderWalletTxRef = _walletTx.doc('payment_$rideId');
+        riderWalletTxSnap = await tx.get(riderWalletTxRef);
       }
 
       // --------------------
@@ -368,7 +342,7 @@ extension RideStatusTransitions on RideRepository {
 
       tx.update(rideRef, updates);
 
-      // ✅ mirror request status update + hold released
+      // Mirror request status + release hold
       if (nextStatus == 'completed' &&
           reqRef != null &&
           reqSnap != null &&
@@ -384,7 +358,7 @@ extension RideStatusTransitions on RideRepository {
         });
       }
 
-      // ✅ credit driver walletBalance
+      // Credit driver wallet
       if (nextStatus == 'completed' &&
           driverRef != null &&
           driverSnap != null) {
@@ -397,7 +371,7 @@ extension RideStatusTransitions on RideRepository {
         });
       }
 
-      // ✅ record wallet transaction history for driver (release)
+      // ✅ Record driver wallet transaction (release)
       if (nextStatus == 'completed' &&
           walletTxRef != null &&
           walletTxSnap != null &&
@@ -406,14 +380,29 @@ extension RideStatusTransitions on RideRepository {
           'type': 'release',
           'status': 'posted',
           'amountCents': fareCents ?? 0,
-
-          // ✅ IMPORTANT: match rules read/create expectations
-          'uid': rideDriverId,          // ✅ wallet owner (driver)
-          'walletOwnerUid': rideDriverId, // optional (keep if you want)
-
+          'uid': rideDriverId,
+          'walletOwnerUid': rideDriverId,
           'fromUid': riderIdForRef,
           'toUid': rideDriverId,
+          'rideId': rideId,
+          'requestId': requestIdForRef,
+          'createdAt': now,
+        });
+      }
 
+      // ✅ NEW: Record rider wallet transaction (payment)
+      if (nextStatus == 'completed' &&
+          riderWalletTxRef != null &&
+          riderWalletTxSnap != null &&
+          !riderWalletTxSnap.exists) {
+        tx.set(riderWalletTxRef, {
+          'type': 'payment',
+          'status': 'posted',
+          'amountCents': fareCents ?? 0,
+          'uid': riderIdForRef,             // ✅ wallet owner is rider
+          'walletOwnerUid': riderIdForRef,
+          'fromUid': riderIdForRef,         // ✅ money left from rider
+          'toUid': rideDriverId,            // ✅ money went to driver
           'rideId': rideId,
           'requestId': requestIdForRef,
           'createdAt': now,
@@ -434,7 +423,7 @@ extension RideStatusTransitions on RideRepository {
 }
 
 // =====================================================
-// CANCELLATION (✅ REFUND IF HELD)
+// CANCELLATION
 // =====================================================
 extension RideCancellation on RideRepository {
   Future<void> cancelRideByRider({required String rideId}) async {
@@ -444,7 +433,6 @@ extension RideCancellation on RideRepository {
     final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
-      // READS
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
@@ -454,12 +442,10 @@ extension RideCancellation on RideRepository {
 
       if (riderId != user.uid) throw Exception('Not authorized');
 
-      // ✅ Rider can cancel only before trip starts
       if (status != 'incoming') {
         throw Exception('Cannot cancel after the trip starts');
       }
 
-      // ✅ prevent double refund
       final currentPay = (ride['paymentStatus'] ?? '').toString();
       if (currentPay == 'refunded') throw Exception('Payment already refunded.');
       if (currentPay == 'released') throw Exception('Payment already released.');
@@ -467,7 +453,6 @@ extension RideCancellation on RideRepository {
       final requestId = (ride['requestId'] ?? ride['requestID'] ?? '').toString();
       final now = FieldValue.serverTimestamp();
 
-      // If held, refund
       DocumentReference<Map<String, dynamic>>? reqRef;
       DocumentSnapshot<Map<String, dynamic>>? reqSnap;
       DocumentReference<Map<String, dynamic>>? riderRef;
@@ -497,7 +482,6 @@ extension RideCancellation on RideRepository {
         }
       }
 
-      // WRITES
       tx.update(rideRef, {
         'rideStatus': 'cancelled',
         'cancelledBy': 'rider',
@@ -538,7 +522,6 @@ extension RideCancellation on RideRepository {
     final rideRef = _db.collection('rides').doc(rideId);
 
     await _db.runTransaction((tx) async {
-      // READS
       final rideSnap = await tx.get(rideRef);
       if (!rideSnap.exists) throw Exception('Ride not found');
 
@@ -548,13 +531,11 @@ extension RideCancellation on RideRepository {
 
       if (rideDriverId != user.uid) throw Exception('Not authorized');
 
-      // ✅ Driver can cancel before ongoing
       final canCancel = status == 'incoming' || status == 'arrived_pickup';
       if (!canCancel) {
         throw Exception('Cannot cancel after the trip starts');
       }
 
-      // ✅ prevent double refund
       final currentPay = (ride['paymentStatus'] ?? '').toString();
       if (currentPay == 'refunded') throw Exception('Payment already refunded.');
       if (currentPay == 'released') throw Exception('Payment already released.');
@@ -563,7 +544,6 @@ extension RideCancellation on RideRepository {
       final riderId = (ride['riderID'] ?? '').toString();
       final now = FieldValue.serverTimestamp();
 
-      // If held, refund rider
       DocumentReference<Map<String, dynamic>>? reqRef;
       DocumentSnapshot<Map<String, dynamic>>? reqSnap;
       DocumentReference<Map<String, dynamic>>? riderRef;
@@ -593,7 +573,6 @@ extension RideCancellation on RideRepository {
         }
       }
 
-      // WRITES
       tx.update(rideRef, {
         'rideStatus': 'cancelled',
         'cancelledBy': 'driver',
@@ -629,7 +608,7 @@ extension RideCancellation on RideRepository {
 }
 
 // =====================================================
-// AUTO RESUME (ONE-TIME LOOKUP)
+// AUTO RESUME
 // =====================================================
 extension RideAutoResume on RideRepository {
   Future<String?> getDriverActiveRideIdOnce(String driverId) async {

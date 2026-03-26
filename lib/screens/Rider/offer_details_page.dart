@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tarumt_carpool/repositories/rider_request_repository.dart';
 import 'package:tarumt_carpool/services/google_direction_service.dart';
 import 'package:tarumt_carpool/services/route_metrics_service.dart';
-import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart'; // optional navigation
+import 'package:tarumt_carpool/screens/Rider/rider_waiting_map_screen.dart';
+import 'package:tarumt_carpool/widgets/layout/app_scaffold.dart';
 
 class OfferDetailsPage extends StatefulWidget {
   final String offerId;
@@ -27,7 +28,6 @@ class _OfferDetailsPageState extends State<OfferDetailsPage> {
 
   static const String offersCol = 'driver_offers';
 
-  // ✅ reuse your directions service
   late final GoogleDirectionsService _directions;
   late final RouteMetricsService _metrics;
 
@@ -104,13 +104,11 @@ class _OfferDetailsPageState extends State<OfferDetailsPage> {
     setState(() => _submitting = true);
 
     try {
-      // ✅ 1) compute REAL route metrics once using Google Directions
       final metrics = await _metrics.computeFromGeoPoints(
         pickupGeo: pickupGeo,
         destinationGeo: destinationGeo,
       );
 
-      // ✅ 2) create riderRequests + decrement seats
       final requestId = await _repo.acceptOfferAndCreateRequest(
         offerId: widget.offerId,
         seatRequested: _requestedSeats,
@@ -121,7 +119,6 @@ class _OfferDetailsPageState extends State<OfferDetailsPage> {
       if (!mounted) return;
       _snack('Offer accepted! Request created.');
 
-      // ✅ optional: go to waiting screen immediately
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -143,9 +140,10 @@ class _OfferDetailsPageState extends State<OfferDetailsPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ride Offer')),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    // ✅ Replaced Scaffold with AppScaffold
+    return AppScaffold(
+      title: 'Ride Offer',
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _offerRef.snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
