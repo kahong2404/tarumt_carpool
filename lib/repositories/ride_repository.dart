@@ -111,15 +111,25 @@ class RideRepository {
     if (user == null) throw Exception('Not logged in');
     final currentDriverId = user.uid;
 
+    // ✅ Check driver is approved in users collection
+    final driverDoc = await _users.doc(currentDriverId).get();
+    if (!driverDoc.exists) {
+      throw ('Driver profile not found.');
+    }
+    final driverStatus = (driverDoc.data()?['driverStatus'] ?? '').toString();
+    if (driverStatus != 'approved') {
+      throw ('Your driver account is not approved yet.');
+    }
+
+    // ✅ Fixed: removed wrong 'driverStatus' filter — that field is NOT in rides
     final activeRideSnap = await _rides
         .where('driverID', isEqualTo: currentDriverId)
-        .where('driverStatus', whereIn: activeDrivers)
         .where('rideStatus', whereIn: activeStatuses)
         .limit(1)
         .get();
 
     if (activeRideSnap.docs.isNotEmpty) {
-      throw Exception('You already have an active ride or your account has not been approved.');
+      throw Exception('You already have an active ride.');
     }
 
     return _db.runTransaction<String>((tx) async {
